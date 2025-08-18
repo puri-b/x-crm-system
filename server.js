@@ -13,18 +13,20 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Database configuration with SSL for production
 const pool = new Pool({
     user: process.env.DB_USER,
     host: process.env.DB_HOST,
     database: process.env.DB_NAME,
     password: process.env.DB_PASSWORD,
-    port: process.env.DB_PORT,
-    ssl: false,
+    port: process.env.DB_PORT || 5432,
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
     connectionTimeoutMillis: 5000,
     idleTimeoutMillis: 10000,
     max: 10
 });
 
+// Test database connection
 pool.connect()
     .then(() => {
         console.log('Connected to PostgreSQL database');
@@ -33,15 +35,12 @@ pool.connect()
         console.error('Database connection error:', err);
     });
 
+// Root route
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Handle 404 for static files
-app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
+// API Routes
 app.get('/api/customers', async (req, res) => {
     try {
         const result = await pool.query('SELECT * FROM x_crmsystem.customers ORDER BY created_at DESC');
@@ -298,11 +297,16 @@ app.delete('/api/customers/:id', async (req, res) => {
     }
 });
 
+// Handle all other routes for SPA
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 // Export app for Vercel
 module.exports = app;
 
 // Only listen when running locally
-if (process.env.NODE_ENV !== 'production') {
+if (require.main === module) {
     app.listen(port, () => {
         console.log(`Server running at http://localhost:${port}`);
     });

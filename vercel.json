@@ -4,10 +4,6 @@
     {
       "src": "server.js",
       "use": "@vercel/node"
-    },
-    {
-      "src": "public/**",
-      "use": "@vercel/static"
     }
   ],
   "routes": [
@@ -17,14 +13,7 @@
     },
     {
       "src": "/(.*)",
-      "dest": "/public/$1"
+      "dest": "/server.js"
     }
-  ],
-  "env": {
-    "DB_USER": "@db_user",
-    "DB_HOST": "@db_host", 
-    "DB_NAME": "@db_name",
-    "DB_PASSWORD": "@db_password",
-    "DB_PORT": "@db_port"
-  }
+  ]
 }
