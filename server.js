@@ -68,27 +68,28 @@ app.get('/api/customers/:id', async (req, res) => {
 });
 
 app.post('/api/customers', async (req, res) => {
+    // Removed fields: industry, naics_sic_codes, evaluation_criteria, selection_reason
     const {
-        company_name, location, registration_info, business_type, industry,
-        naics_sic_codes, contact_names, phone_number, contact_history,
-        budget, evaluation_criteria, required_products, pain_points,
-        selection_reason, contract_value, email, lead_source, sales_person
+        company_name, location, registration_info, business_type,
+        contact_names, phone_number, contact_history,
+        budget, required_products, pain_points,
+        contract_value, email, lead_source, sales_person
     } = req.body;
 
     try {
         console.log('Inserting customer:', company_name);
         const result = await pool.query(
             `INSERT INTO x_crmsystem.customers 
-            (company_name, location, registration_info, business_type, industry,
-             naics_sic_codes, contact_names, phone_number, contact_history,
-             budget, evaluation_criteria, required_products, pain_points,
-             selection_reason, contract_value, email, lead_source, sales_person)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+            (company_name, location, registration_info, business_type,
+             contact_names, phone_number, contact_history,
+             budget, required_products, pain_points,
+             contract_value, email, lead_source, sales_person)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
             RETURNING *`,
-            [company_name, location, registration_info, business_type, industry,
-             naics_sic_codes, contact_names, phone_number, contact_history,
-             budget, evaluation_criteria, required_products, pain_points,
-             selection_reason, contract_value, email, lead_source, sales_person]
+            [company_name, location, registration_info, business_type,
+             contact_names, phone_number, contact_history,
+             budget, required_products, pain_points,
+             contract_value, email, lead_source, sales_person]
         );
         console.log('Customer inserted successfully');
         res.json(result.rows[0]);
@@ -100,11 +101,12 @@ app.post('/api/customers', async (req, res) => {
 
 app.put('/api/customers/:id', async (req, res) => {
     const customerId = req.params.id;
+    // Removed fields: industry, naics_sic_codes, evaluation_criteria, selection_reason
     const {
-        company_name, location, registration_info, business_type, industry,
-        naics_sic_codes, contact_names, phone_number, contact_history,
-        budget, evaluation_criteria, required_products, pain_points,
-        selection_reason, contract_value, email, lead_source, sales_person
+        company_name, location, registration_info, business_type,
+        contact_names, phone_number, contact_history,
+        budget, required_products, pain_points,
+        contract_value, email, lead_source, sales_person
     } = req.body;
 
     try {
@@ -112,17 +114,16 @@ app.put('/api/customers/:id', async (req, res) => {
         const result = await pool.query(
             `UPDATE x_crmsystem.customers 
             SET company_name = $1, location = $2, registration_info = $3, business_type = $4, 
-                industry = $5, naics_sic_codes = $6, contact_names = $7, phone_number = $8, 
-                contact_history = $9, budget = $10, evaluation_criteria = $11, 
-                required_products = $12, pain_points = $13, selection_reason = $14, 
-                contract_value = $15, email = $16, lead_source = $17, sales_person = $18,
+                contact_names = $5, phone_number = $6, contact_history = $7, budget = $8, 
+                required_products = $9, pain_points = $10, contract_value = $11, 
+                email = $12, lead_source = $13, sales_person = $14,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = $19
+            WHERE id = $15
             RETURNING *`,
-            [company_name, location, registration_info, business_type, industry,
-             naics_sic_codes, contact_names, phone_number, contact_history,
-             budget, evaluation_criteria, required_products, pain_points,
-             selection_reason, contract_value, email, lead_source, sales_person, customerId]
+            [company_name, location, registration_info, business_type,
+             contact_names, phone_number, contact_history, budget,
+             required_products, pain_points, contract_value,
+             email, lead_source, sales_person, customerId]
         );
         
         if (result.rows.length === 0) {
@@ -137,6 +138,25 @@ app.put('/api/customers/:id', async (req, res) => {
     }
 });
 
+app.delete('/api/customers/:id', async (req, res) => {
+    const customerId = req.params.id;
+    try {
+        console.log('Deleting customer:', customerId);
+        const result = await pool.query('DELETE FROM x_crmsystem.customers WHERE id = $1 RETURNING *', [customerId]);
+        
+        if (result.rows.length === 0) {
+            res.status(404).json({ error: 'Customer not found' });
+        } else {
+            console.log('Customer deleted successfully');
+            res.json({ message: 'Customer deleted successfully' });
+        }
+    } catch (err) {
+        console.error('Delete error:', err);
+        res.status(500).json({ error: 'Database error: ' + err.message });
+    }
+});
+
+// Tasks API routes
 app.get('/api/tasks', async (req, res) => {
     try {
         const result = await pool.query(`
@@ -241,6 +261,7 @@ app.put('/api/tasks/:id', async (req, res) => {
     }
 });
 
+// Contact logs API routes
 app.get('/api/customers/:id/contacts', async (req, res) => {
     const customerId = req.params.id;
     try {
@@ -266,8 +287,8 @@ app.post('/api/customers/:id/contacts', async (req, res) => {
         const result = await pool.query(
             `INSERT INTO x_crmsystem.contact_logs 
             (customer_id, contact_type, contact_status, contact_method, contact_person,
-             contact_details, next_follow_up, notes, created_by)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+             contact_details, next_follow_up, notes, created_by, contact_date)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP)
             RETURNING *`,
             [customerId, contact_type, contact_status, contact_method, contact_person,
              contact_details, next_follow_up, notes, created_by]
@@ -279,22 +300,95 @@ app.post('/api/customers/:id/contacts', async (req, res) => {
     }
 });
 
-app.delete('/api/customers/:id', async (req, res) => {
-    const customerId = req.params.id;
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+    res.json({ 
+        status: 'OK', 
+        timestamp: new Date().toISOString(),
+        version: '1.1.0'
+    });
+});
+
+// Database info endpoint
+app.get('/api/info', async (req, res) => {
     try {
-        console.log('Deleting customer:', customerId);
-        const result = await pool.query('DELETE FROM x_crmsystem.customers WHERE id = $1 RETURNING *', [customerId]);
-        
-        if (result.rows.length === 0) {
-            res.status(404).json({ error: 'Customer not found' });
-        } else {
-            console.log('Customer deleted successfully');
-            res.json({ message: 'Customer deleted successfully' });
-        }
+        const [customersCount, tasksCount, contactsCount] = await Promise.all([
+            pool.query('SELECT COUNT(*) FROM x_crmsystem.customers'),
+            pool.query('SELECT COUNT(*) FROM x_crmsystem.tasks'),
+            pool.query('SELECT COUNT(*) FROM x_crmsystem.contact_logs')
+        ]);
+
+        res.json({
+            customers: parseInt(customersCount.rows[0].count),
+            tasks: parseInt(tasksCount.rows[0].count),
+            contacts: parseInt(contactsCount.rows[0].count),
+            timestamp: new Date().toISOString()
+        });
     } catch (err) {
-        console.error('Delete error:', err);
-        res.status(500).json({ error: 'Database error: ' + err.message });
+        console.error('Info error:', err);
+        res.status(500).json({ error: 'Failed to get info: ' + err.message });
     }
+});
+
+// Statistics endpoint
+app.get('/api/stats', async (req, res) => {
+    try {
+        const [
+            totalCustomers,
+            onlineLeads,
+            offlineLeads,
+            highValueCustomers,
+            recentCustomers,
+            taskStats
+        ] = await Promise.all([
+            pool.query('SELECT COUNT(*) FROM x_crmsystem.customers'),
+            pool.query("SELECT COUNT(*) FROM x_crmsystem.customers WHERE lead_source = 'Online'"),
+            pool.query("SELECT COUNT(*) FROM x_crmsystem.customers WHERE lead_source = 'Offline'"),
+            pool.query('SELECT COUNT(*) FROM x_crmsystem.customers WHERE contract_value > 100000'),
+            pool.query('SELECT COUNT(*) FROM x_crmsystem.customers WHERE created_at >= NOW() - INTERVAL \'7 days\''),
+            pool.query(`
+                SELECT 
+                    status,
+                    COUNT(*) as count
+                FROM x_crmsystem.tasks 
+                GROUP BY status
+            `)
+        ]);
+
+        const taskStatsObj = {};
+        taskStats.rows.forEach(row => {
+            taskStatsObj[row.status] = parseInt(row.count);
+        });
+
+        res.json({
+            customers: {
+                total: parseInt(totalCustomers.rows[0].count),
+                online_leads: parseInt(onlineLeads.rows[0].count),
+                offline_leads: parseInt(offlineLeads.rows[0].count),
+                high_value: parseInt(highValueCustomers.rows[0].count),
+                recent: parseInt(recentCustomers.rows[0].count)
+            },
+            tasks: taskStatsObj,
+            timestamp: new Date().toISOString()
+        });
+    } catch (err) {
+        console.error('Stats error:', err);
+        res.status(500).json({ error: 'Failed to get stats: ' + err.message });
+    }
+});
+
+// Error handling middleware
+app.use((error, req, res, next) => {
+    console.error('Unhandled error:', error);
+    res.status(500).json({ 
+        error: 'Internal server error',
+        message: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
+    });
+});
+
+// 404 handler for API routes
+app.use('/api/*', (req, res) => {
+    res.status(404).json({ error: 'API endpoint not found' });
 });
 
 // Handle all other routes for SPA
@@ -309,5 +403,7 @@ module.exports = app;
 if (require.main === module) {
     app.listen(port, () => {
         console.log(`Server running at http://localhost:${port}`);
+        console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+        console.log('CRM System v1.1.0 - Mobile Responsive');
     });
 }

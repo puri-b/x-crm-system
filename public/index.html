@@ -12,12 +12,22 @@
     <div class="container-fluid">
         <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
             <div class="container">
-                <a class="navbar-brand" href="#">CRM System</a>
+                <a class="navbar-brand" href="#">
+                    <i class="bi bi-people-fill me-2 d-none d-sm-inline"></i>CRM System
+                </a>
                 <div class="navbar-nav">
-                    <button class="btn btn-light me-2" onclick="showAddForm()">เพิ่มลูกค้าใหม่</button>
-                    <button class="btn btn-outline-light me-2" onclick="showTasksView()">งานที่ต้องทำ</button>
-                    <button class="btn btn-outline-light me-2" onclick="exportToCSV()">Export CSV</button>
-                    <button class="btn btn-outline-light me-2" onclick="loadCustomers()">รายชื่อลูกค้า</button>
+                    <button class="btn btn-light me-1" onclick="showAddForm()">
+                        <i class="bi bi-plus-lg me-1"></i><span class="d-none d-sm-inline">เพิ่มลูกค้า</span>
+                    </button>
+                    <button class="btn btn-outline-light me-1" onclick="showTasksView()">
+                        <i class="bi bi-list-task me-1"></i><span class="d-none d-sm-inline">งาน</span>
+                    </button>
+                    <button class="btn btn-outline-light me-1" onclick="exportToCSV()">
+                        <i class="bi bi-download me-1"></i><span class="d-none d-sm-inline">Export</span>
+                    </button>
+                    <button class="btn btn-outline-light me-1" onclick="loadCustomers()">
+                        <i class="bi bi-arrow-clockwise me-1"></i><span class="d-none d-sm-inline">รีเฟรช</span>
+                    </button>
                     <button class="btn btn-outline-light" onclick="showSettings()">
                         <i class="bi bi-gear"></i>
                     </button>
@@ -25,67 +35,89 @@
             </div>
         </nav>
 
-        <div class="container mt-4">
+        <div class="container mt-3">
             <div id="addCustomerForm" style="display: none;">
                 <div class="row">
                     <div class="col-lg-8 mx-auto">
                         <div class="card">
                             <div class="card-header">
-                                <h5 class="card-title">เพิ่มข้อมูลลูกค้าใหม่</h5>
+                                <h5 class="card-title mb-0">
+                                    <i class="bi bi-person-plus me-2"></i>เพิ่มข้อมูลลูกค้าใหม่
+                                </h5>
                             </div>
                             <div class="card-body">
                                 <form id="customerForm">
                                     <div class="row">
-                                        <div class="col-md-6 mb-3">
-                                            <label class="form-label">ชื่อบริษัท *</label>
+                                        <!-- ข้อมูลพื้นฐาน -->
+                                        <div class="col-12 mb-3">
+                                            <label class="form-label">
+                                                <i class="bi bi-building me-1"></i>ชื่อบริษัท *
+                                            </label>
                                             <input type="text" class="form-control" name="company_name" required>
                                         </div>
+                                        
                                         <div class="col-md-6 mb-3">
-                                            <label class="form-label">อีเมล</label>
+                                            <label class="form-label">
+                                                <i class="bi bi-envelope me-1"></i>อีเมล
+                                            </label>
                                             <input type="email" class="form-control" name="email">
                                         </div>
+                                        
                                         <div class="col-md-6 mb-3">
-                                            <label class="form-label">ที่ตั้ง</label>
-                                            <textarea class="form-control" name="location" rows="2"></textarea>
-                                        </div>
-                                        <div class="col-md-6 mb-3">
-                                            <label class="form-label">ข้อมูลการจดทะเบียน</label>
-                                            <textarea class="form-control" name="registration_info" rows="2"></textarea>
-                                        </div>
-                                        <div class="col-md-6 mb-3">
-                                            <label class="form-label">ประเภทธุรกิจ</label>
-                                            <input type="text" class="form-control" name="business_type">
-                                        </div>
-                                        <div class="col-md-6 mb-3">
-                                            <label class="form-label">อุตสาหกรรม</label>
-                                            <input type="text" class="form-control" name="industry">
-                                        </div>
-                                        <div class="col-md-6 mb-3">
-                                            <label class="form-label">NAICS/SIC Codes</label>
-                                            <input type="text" class="form-control" name="naics_sic_codes">
-                                        </div>
-                                        <div class="col-md-6 mb-3">
-                                            <label class="form-label">ชื่อผู้ติดต่อ</label>
-                                            <textarea class="form-control" name="contact_names" rows="2"></textarea>
-                                        </div>
-                                        <div class="col-md-6 mb-3">
-                                            <label class="form-label">เบอร์โทรศัพท์</label>
+                                            <label class="form-label">
+                                                <i class="bi bi-telephone me-1"></i>เบอร์โทรศัพท์
+                                            </label>
                                             <input type="tel" class="form-control" name="phone_number">
                                         </div>
+                                        
+                                        <div class="col-12 mb-3">
+                                            <label class="form-label">
+                                                <i class="bi bi-geo-alt me-1"></i>ที่ตั้ง
+                                            </label>
+                                            <textarea class="form-control" name="location" rows="2"></textarea>
+                                        </div>
+                                        
+                                        <div class="col-12 mb-3">
+                                            <label class="form-label">
+                                                <i class="bi bi-file-text me-1"></i>ข้อมูลการจดทะเบียน
+                                            </label>
+                                            <textarea class="form-control" name="registration_info" rows="2"></textarea>
+                                        </div>
+                                        
                                         <div class="col-md-6 mb-3">
-                                            <label class="form-label">งบประมาณ</label>
+                                            <label class="form-label">
+                                                <i class="bi bi-briefcase me-1"></i>ประเภทธุรกิจ
+                                            </label>
+                                            <input type="text" class="form-control" name="business_type">
+                                        </div>
+                                        
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">
+                                                <i class="bi bi-currency-dollar me-1"></i>งบประมาณ
+                                            </label>
                                             <input type="number" class="form-control" name="budget" step="0.01">
                                         </div>
-                                        <div class="col-md-12 mb-3">
-                                            <label class="form-label">ประวัติการติดต่อ</label>
+                                        
+                                        <!-- ข้อมูลผู้ติดต่อ -->
+                                        <div class="col-12 mb-3">
+                                            <label class="form-label">
+                                                <i class="bi bi-people me-1"></i>ชื่อผู้ติดต่อ
+                                            </label>
+                                            <textarea class="form-control" name="contact_names" rows="2"></textarea>
+                                        </div>
+                                        
+                                        <div class="col-12 mb-3">
+                                            <label class="form-label">
+                                                <i class="bi bi-clock-history me-1"></i>ประวัติการติดต่อ
+                                            </label>
                                             <textarea class="form-control" name="contact_history" rows="3"></textarea>
                                         </div>
-                                        <div class="col-md-12 mb-3">
-                                            <label class="form-label">เกณฑ์การประเมิน</label>
-                                            <textarea class="form-control" name="evaluation_criteria" rows="3"></textarea>
-                                        </div>
+                                        
+                                        <!-- ข้อมูลผลิตภัณฑ์และการขาย -->
                                         <div class="col-md-6 mb-3">
-                                            <label class="form-label">ผลิตภัณฑ์/บริการที่ต้องการ</label>
+                                            <label class="form-label">
+                                                <i class="bi bi-box me-1"></i>ผลิตภัณฑ์/บริการที่สนใจ
+                                            </label>
                                             <select class="form-select" name="required_products">
                                                 <option value="">เลือกผลิตภัณฑ์/บริการ</option>
                                                 <option value="สแกนเอกสาร">สแกนเอกสาร</option>
@@ -98,16 +130,22 @@
                                                 <option value="Tiktrack">Tiktrack</option>
                                             </select>
                                         </div>
+                                        
                                         <div class="col-md-6 mb-3">
-                                            <label class="form-label">แหล่งที่มา Lead</label>
+                                            <label class="form-label">
+                                                <i class="bi bi-arrow-down-circle me-1"></i>แหล่งที่มา Lead
+                                            </label>
                                             <select class="form-select" name="lead_source">
                                                 <option value="">เลือกแหล่งที่มา</option>
                                                 <option value="Online">Online</option>
                                                 <option value="Offline">Offline</option>
                                             </select>
                                         </div>
+                                        
                                         <div class="col-md-6 mb-3">
-                                            <label class="form-label">Sales Person ผู้ดูแล *</label>
+                                            <label class="form-label">
+                                                <i class="bi bi-person-badge me-1"></i>Sales Person ผู้ดูแล *
+                                            </label>
                                             <select class="form-select" name="sales_person" required>
                                                 <option value="">เลือก Sales Person</option>
                                                 <option value="Aui">Aui</option>
@@ -115,22 +153,29 @@
                                                 <option value="Puri">Puri</option>
                                             </select>
                                         </div>
-                                        <div class="col-md-12 mb-3">
-                                            <label class="form-label">Pain Points และปัญหาที่ต้องการแก้ไข</label>
-                                            <textarea class="form-control" name="pain_points" rows="3"></textarea>
-                                        </div>
-                                        <div class="col-md-12 mb-3">
-                                            <label class="form-label">เหตุผลการเลือก/ไม่เลือกเรา</label>
-                                            <textarea class="form-control" name="selection_reason" rows="3"></textarea>
-                                        </div>
+                                        
                                         <div class="col-md-6 mb-3">
-                                            <label class="form-label">Contract Value</label>
+                                            <label class="form-label">
+                                                <i class="bi bi-currency-exchange me-1"></i>Contract Value
+                                            </label>
                                             <input type="number" class="form-control" name="contract_value" step="0.01">
                                         </div>
+                                        
+                                        <div class="col-12 mb-3">
+                                            <label class="form-label">
+                                                <i class="bi bi-exclamation-triangle me-1"></i>Pain Points และปัญหาที่ต้องการแก้ไข
+                                            </label>
+                                            <textarea class="form-control" name="pain_points" rows="3"></textarea>
+                                        </div>
                                     </div>
-                                    <div class="text-end">
-                                        <button type="button" class="btn btn-secondary me-2" onclick="hideAddForm()">ยกเลิก</button>
-                                        <button type="submit" class="btn btn-primary">บันทึกข้อมูล</button>
+                                    
+                                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                        <button type="button" class="btn btn-secondary" onclick="hideAddForm()">
+                                            <i class="bi bi-x me-1"></i>ยกเลิก
+                                        </button>
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="bi bi-check-lg me-1"></i>บันทึกข้อมูล
+                                        </button>
                                     </div>
                                 </form>
                             </div>
@@ -140,19 +185,17 @@
             </div>
 
             <div id="tasksView" style="display: none;">
-                <div class="row mb-3">
-                    <div class="col-md-8">
-                        <h5>งานที่ต้องทำ</h5>
-                    </div>
-                    <div class="col-md-4 text-end">
-                        <select id="taskStatusFilter" class="form-select d-inline-block" style="width: auto;">
+                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap">
+                    <h5 class="mb-2 mb-md-0"><i class="bi bi-list-task me-2"></i>งานที่ต้องทำ</h5>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <select id="taskStatusFilter" class="form-select form-select-sm">
                             <option value="">สถานะทั้งหมด</option>
                             <option value="Pending">รอดำเนินการ</option>
                             <option value="In Progress">กำลังดำเนินการ</option>
                             <option value="Completed">เสร็จแล้ว</option>
                             <option value="Cancelled">ยกเลิก</option>
                         </select>
-                        <select id="taskAssigneeFilter" class="form-select d-inline-block ms-2" style="width: auto;">
+                        <select id="taskAssigneeFilter" class="form-select form-select-sm">
                             <option value="">ผู้รับผิดชอบทั้งหมด</option>
                             <option value="Aui">Aui</option>
                             <option value="Ink">Ink</option>
@@ -162,30 +205,30 @@
                 </div>
                 
                 <div class="row">
-                    <div class="col-md-4">
+                    <div class="col-md-4 mb-3">
                         <div class="card border-warning">
                             <div class="card-header bg-warning text-dark">
-                                <h6 class="mb-0">งานที่ครบกำหนดวันนี้</h6>
+                                <h6 class="mb-0"><i class="bi bi-calendar-event me-1"></i>งานวันนี้</h6>
                             </div>
                             <div class="card-body p-2" id="todayTasks">
                                 <div class="text-center text-muted">กำลังโหลด...</div>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-4 mb-3">
                         <div class="card border-danger">
                             <div class="card-header bg-danger text-white">
-                                <h6 class="mb-0">งานเกินกำหนด</h6>
+                                <h6 class="mb-0"><i class="bi bi-exclamation-triangle me-1"></i>งานเกินกำหนด</h6>
                             </div>
                             <div class="card-body p-2" id="overdueTasks">
                                 <div class="text-center text-muted">กำลังโหลด...</div>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-4 mb-3">
                         <div class="card border-info">
                             <div class="card-header bg-info text-white">
-                                <h6 class="mb-0">งานสำคัญ</h6>
+                                <h6 class="mb-0"><i class="bi bi-lightning me-1"></i>งานสำคัญ</h6>
                             </div>
                             <div class="card-body p-2" id="urgentTasks">
                                 <div class="text-center text-muted">กำลังโหลด...</div>
@@ -196,7 +239,7 @@
 
                 <div class="card mt-3">
                     <div class="card-header">
-                        <h6 class="card-title mb-0">งานทั้งหมด</h6>
+                        <h6 class="card-title mb-0"><i class="bi bi-list me-2"></i>งานทั้งหมด</h6>
                     </div>
                     <div class="card-body">
                         <div id="allTasksTable"></div>
@@ -206,72 +249,141 @@
 
             <div id="customersList">
                 <div class="card">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="card-title mb-0">รายชื่อลูกค้า</h5>
-                        <div class="d-flex gap-2 align-items-center">
-                            <select id="sortBy" class="form-select" style="width: 150px;">
-                                <option value="created_at_desc">ใหม่สุดก่อน</option>
-                                <option value="created_at_asc">เก่าสุดก่อน</option>
-                                <option value="company_name_asc">ชื่อบริษัท A-Z</option>
-                                <option value="company_name_desc">ชื่อบริษัท Z-A</option>
-                                <option value="contract_value_desc">Contract Value สูงสุด</option>
-                                <option value="contract_value_asc">Contract Value ต่ำสุด</option>
-                            </select>
-                            <input type="text" id="searchInput" class="form-control" placeholder="ค้นหาชื่อบริษัท, อีเมล, หรือเบอร์โทร" style="width: 250px;">
-                            <select id="leadSourceFilter" class="form-select" style="width: 130px;">
-                                <option value="">แหล่งที่มาทั้งหมด</option>
-                                <option value="Online">Online</option>
-                                <option value="Offline">Offline</option>
-                            </select>
-                            <select id="productFilter" class="form-select" style="width: 150px;">
-                                <option value="">ผลิตภัณฑ์ทั้งหมด</option>
-                                <option value="สแกนเอกสาร">สแกนเอกสาร</option>
-                                <option value="บันทึกข้อมูล">บันทึกข้อมูล</option>
-                                <option value="BPO">BPO</option>
-                                <option value="e-Flow">e-Flow</option>
-                                <option value="RPA">RPA</option>
-                                <option value="AI OCR">AI OCR</option>
-                                <option value="Payroll">Payroll</option>
-                                <option value="Tiktrack">Tiktrack</option>
-                            </select>
-                            <select id="salesPersonFilter" class="form-select" style="width: 120px;">
-                                <option value="">Sales ทั้งหมด</option>
-                                <option value="Aui">Aui</option>
-                                <option value="Ink">Ink</option>
-                                <option value="Puri">Puri</option>
-                            </select>
-                            <button class="btn btn-outline-info" onclick="showAdvancedSearch()" title="ค้นหาขั้นสูง">
-                                <i class="bi bi-search"></i> ขั้นสูง
+                    <div class="card-header">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap">
+                            <h5 class="card-title mb-2 mb-md-0">
+                                <i class="bi bi-people me-2"></i>รายชื่อลูกค้า
+                            </h5>
+                            
+                            <!-- Desktop Filters -->
+                            <div class="desktop-filters d-none d-lg-flex gap-2 align-items-center flex-wrap">
+                                <select id="sortBy" class="form-select form-select-sm" style="width: 150px;">
+                                    <option value="created_at_desc">ใหม่สุดก่อน</option>
+                                    <option value="created_at_asc">เก่าสุดก่อน</option>
+                                    <option value="company_name_asc">ชื่อบริษัท A-Z</option>
+                                    <option value="company_name_desc">ชื่อบริษัท Z-A</option>
+                                    <option value="contract_value_desc">Contract Value สูงสุด</option>
+                                    <option value="contract_value_asc">Contract Value ต่ำสุด</option>
+                                </select>
+                                <input type="text" id="searchInput" class="form-control form-control-sm" placeholder="ค้นหา..." style="width: 200px;">
+                                <select id="leadSourceFilter" class="form-select form-select-sm" style="width: 120px;">
+                                    <option value="">แหล่งทั้งหมด</option>
+                                    <option value="Online">Online</option>
+                                    <option value="Offline">Offline</option>
+                                </select>
+                                <select id="productFilter" class="form-select form-select-sm" style="width: 130px;">
+                                    <option value="">ผลิตภัณฑ์ทั้งหมด</option>
+                                    <option value="สแกนเอกสาร">สแกนเอกสาร</option>
+                                    <option value="บันทึกข้อมูล">บันทึกข้อมูล</option>
+                                    <option value="BPO">BPO</option>
+                                    <option value="e-Flow">e-Flow</option>
+                                    <option value="RPA">RPA</option>
+                                    <option value="AI OCR">AI OCR</option>
+                                    <option value="Payroll">Payroll</option>
+                                    <option value="Tiktrack">Tiktrack</option>
+                                </select>
+                                <select id="salesPersonFilter" class="form-select form-select-sm" style="width: 100px;">
+                                    <option value="">Sales ทั้งหมด</option>
+                                    <option value="Aui">Aui</option>
+                                    <option value="Ink">Ink</option>
+                                    <option value="Puri">Puri</option>
+                                </select>
+                                <button class="btn btn-outline-info btn-sm" onclick="showAdvancedSearch()" title="ค้นหาขั้นสูง">
+                                    <i class="bi bi-search"></i>
+                                </button>
+                                <button class="btn btn-outline-secondary btn-sm" onclick="clearFilters()" title="ล้างตัวกรอง">
+                                    <i class="bi bi-x-circle"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Mobile Filters -->
+                        <div class="mobile-filters d-lg-none mt-3">
+                            <button class="btn btn-outline-primary w-100" data-bs-toggle="collapse" data-bs-target="#mobileFiltersCollapse">
+                                <i class="bi bi-funnel me-2"></i>ตัวกรองและค้นหา
                             </button>
-                            <button class="btn btn-outline-secondary" onclick="clearFilters()" title="ล้างตัวกรอง">
-                                <i class="bi bi-x-circle"></i> ล้าง
-                            </button>
+                            <div class="collapse" id="mobileFiltersCollapse">
+                                <div class="card card-body mt-2">
+                                    <div class="row g-2">
+                                        <div class="col-12">
+                                            <input type="text" id="searchInputMobile" class="form-control" placeholder="ค้นหาชื่อบริษัท, อีเมล, หรือเบอร์โทร">
+                                        </div>
+                                        <div class="col-6">
+                                            <select id="sortByMobile" class="form-select">
+                                                <option value="created_at_desc">ใหม่สุดก่อน</option>
+                                                <option value="created_at_asc">เก่าสุดก่อน</option>
+                                                <option value="company_name_asc">ชื่อบริษัท A-Z</option>
+                                                <option value="company_name_desc">ชื่อบริษัท Z-A</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-6">
+                                            <select id="leadSourceFilterMobile" class="form-select">
+                                                <option value="">แหล่งทั้งหมด</option>
+                                                <option value="Online">Online</option>
+                                                <option value="Offline">Offline</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-6">
+                                            <select id="productFilterMobile" class="form-select">
+                                                <option value="">ผลิตภัณฑ์ทั้งหมด</option>
+                                                <option value="สแกนเอกสาร">สแกนเอกสาร</option>
+                                                <option value="บันทึกข้อมูล">บันทึกข้อมูล</option>
+                                                <option value="BPO">BPO</option>
+                                                <option value="e-Flow">e-Flow</option>
+                                                <option value="RPA">RPA</option>
+                                                <option value="AI OCR">AI OCR</option>
+                                                <option value="Payroll">Payroll</option>
+                                                <option value="Tiktrack">Tiktrack</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-6">
+                                            <select id="salesPersonFilterMobile" class="form-select">
+                                                <option value="">Sales ทั้งหมด</option>
+                                                <option value="Aui">Aui</option>
+                                                <option value="Ink">Ink</option>
+                                                <option value="Puri">Puri</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-6">
+                                            <button class="btn btn-outline-info w-100" onclick="showAdvancedSearch()">
+                                                <i class="bi bi-search me-1"></i>ค้นหาขั้นสูง
+                                            </button>
+                                        </div>
+                                        <div class="col-6">
+                                            <button class="btn btn-outline-secondary w-100" onclick="clearFilters()">
+                                                <i class="bi bi-x-circle me-1"></i>ล้าง
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div class="card-body">
                         <div class="mb-3">
-                            <div class="btn-group" role="group" aria-label="Quick filters">
-                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="quickFilter('high_value')">
-                                    <i class="bi bi-currency-dollar"></i> ลูกค้ามูลค่าสูง
+                            <div class="btn-group w-100 d-flex flex-wrap" role="group">
+                                <button type="button" class="btn btn-outline-primary btn-sm flex-fill" onclick="quickFilter('high_value')">
+                                    <i class="bi bi-currency-dollar"></i> <span class="d-none d-sm-inline">มูลค่าสูง</span>
                                 </button>
-                                <button type="button" class="btn btn-outline-success btn-sm" onclick="quickFilter('recent')">
-                                    <i class="bi bi-clock"></i> ลูกค้าใหม่ (7 วัน)
+                                <button type="button" class="btn btn-outline-success btn-sm flex-fill" onclick="quickFilter('recent')">
+                                    <i class="bi bi-clock"></i> <span class="d-none d-sm-inline">ลูกค้าใหม่</span>
                                 </button>
-                                <button type="button" class="btn btn-outline-warning btn-sm" onclick="quickFilter('no_contact')">
-                                    <i class="bi bi-exclamation-triangle"></i> ไม่มี Contract Value
+                                <button type="button" class="btn btn-outline-warning btn-sm flex-fill" onclick="quickFilter('no_contact')">
+                                    <i class="bi bi-exclamation-triangle"></i> <span class="d-none d-sm-inline">ไม่มี Contract</span>
                                 </button>
-                                <button type="button" class="btn btn-outline-info btn-sm" onclick="quickFilter('online_leads')">
-                                    <i class="bi bi-globe"></i> Lead Online
+                                <button type="button" class="btn btn-outline-info btn-sm flex-fill" onclick="quickFilter('online_leads')">
+                                    <i class="bi bi-globe"></i> <span class="d-none d-sm-inline">Online</span>
                                 </button>
                             </div>
                         </div>
+                        
                         <div id="customersTable"></div>
-                        <div id="pagination" class="d-flex justify-content-between align-items-center mt-3">
-                            <div>
-                                <span id="recordInfo"></span>
+                        <div id="pagination" class="d-flex justify-content-between align-items-center mt-3 flex-wrap">
+                            <div class="mb-2 mb-md-0">
+                                <small id="recordInfo" class="text-muted"></small>
                             </div>
                             <nav>
-                                <ul class="pagination mb-0" id="paginationNav">
+                                <ul class="pagination pagination-sm mb-0" id="paginationNav">
                                 </ul>
                             </nav>
                         </div>

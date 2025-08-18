@@ -3,12 +3,14 @@ document.addEventListener('DOMContentLoaded', function() {
     loadCustomers();
     initializeAutoRefresh();
     initializeKeyboardShortcuts();
+    setupMobileFilters();
     
     document.getElementById('customerForm').addEventListener('submit', function(e) {
         e.preventDefault();
         addCustomer();
     });
 
+    // Desktop filters
     const searchInput = document.getElementById('searchInput');
     const leadSourceFilter = document.getElementById('leadSourceFilter');
     const productFilter = document.getElementById('productFilter');
@@ -52,6 +54,44 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+function setupMobileFilters() {
+    // Sync mobile and desktop filters
+    const mobileInputs = {
+        'searchInputMobile': 'searchInput',
+        'sortByMobile': 'sortBy',
+        'leadSourceFilterMobile': 'leadSourceFilter',
+        'productFilterMobile': 'productFilter',
+        'salesPersonFilterMobile': 'salesPersonFilter'
+    };
+
+    Object.entries(mobileInputs).forEach(([mobileId, desktopId]) => {
+        const mobileEl = document.getElementById(mobileId);
+        const desktopEl = document.getElementById(desktopId);
+        
+        if (mobileEl && desktopEl) {
+            mobileEl.addEventListener('input', function() {
+                desktopEl.value = this.value;
+                if (mobileId === 'searchInputMobile') {
+                    currentPage = 1;
+                    debounce(filterAndSort, 300)();
+                } else {
+                    currentPage = 1;
+                    filterAndSort();
+                }
+            });
+
+            mobileEl.addEventListener('change', function() {
+                desktopEl.value = this.value;
+                if (mobileId === 'sortByMobile') {
+                    currentSort = this.value;
+                }
+                currentPage = 1;
+                filterAndSort();
+            });
+        }
+    });
+}
+
 let allCustomers = [];
 let filteredCustomers = [];
 let currentPage = 1;
@@ -63,12 +103,19 @@ let lastUpdateTime = null;
 function showAddForm() {
     document.getElementById('addCustomerForm').style.display = 'block';
     document.getElementById('customersList').style.display = 'none';
+    document.getElementById('tasksView').style.display = 'none';
     document.getElementById('customerForm').reset();
+    
+    // Scroll to top on mobile
+    if (window.innerWidth <= 768) {
+        window.scrollTo(0, 0);
+    }
 }
 
 function hideAddForm() {
     document.getElementById('addCustomerForm').style.display = 'none';
     document.getElementById('customersList').style.display = 'block';
+    document.getElementById('tasksView').style.display = 'none';
     resetForm();
 }
 
@@ -83,21 +130,18 @@ async function addCustomer() {
         return;
     }
     
+    // Removed fields: industry, naics_sic_codes, evaluation_criteria, selection_reason
     const customerData = {
         company_name: formData.get('company_name'),
         location: formData.get('location'),
         registration_info: formData.get('registration_info'),
         business_type: formData.get('business_type'),
-        industry: formData.get('industry'),
-        naics_sic_codes: formData.get('naics_sic_codes'),
         contact_names: formData.get('contact_names'),
         phone_number: formData.get('phone_number'),
         contact_history: formData.get('contact_history'),
         budget: formData.get('budget') ? parseFloat(formData.get('budget')) : null,
-        evaluation_criteria: formData.get('evaluation_criteria'),
         required_products: formData.get('required_products'),
         pain_points: formData.get('pain_points'),
-        selection_reason: formData.get('selection_reason'),
         contract_value: formData.get('contract_value') ? parseFloat(formData.get('contract_value')) : null,
         email: formData.get('email'),
         lead_source: formData.get('lead_source'),
@@ -106,7 +150,7 @@ async function addCustomer() {
 
     // Show loading
     const submitButton = form.querySelector('button[type="submit"]');
-    const originalText = submitButton.textContent;
+    const originalText = submitButton.innerHTML;
     submitButton.disabled = true;
     submitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>กำลังบันทึก...';
 
@@ -132,7 +176,7 @@ async function addCustomer() {
         showNotification('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'danger');
     } finally {
         submitButton.disabled = false;
-        submitButton.textContent = originalText;
+        submitButton.innerHTML = originalText;
     }
 }
 
@@ -150,7 +194,7 @@ async function loadCustomers() {
 
         if (allCustomers.length === 0) {
             document.getElementById('customersTable').innerHTML = 
-                '<div class="empty-state">ยังไม่มีข้อมูลลูกค้า<br><button class="btn btn-primary mt-2" onclick="showAddForm()">เพิ่มลูกค้าใหม่</button></div>';
+                '<div class="empty-state"><i class="bi bi-people" style="font-size: 3rem; opacity: 0.3;"></i><br>ยังไม่มีข้อมูลลูกค้า<br><button class="btn btn-primary mt-2" onclick="showAddForm()">เพิ่มลูกค้าใหม่</button></div>';
             return;
         }
 
@@ -160,7 +204,7 @@ async function loadCustomers() {
     } catch (error) {
         console.error('Error:', error);
         document.getElementById('customersTable').innerHTML = 
-            '<div class="empty-state">เกิดข้อผิดพลาดในการโหลดข้อมูล<br><button class="btn btn-outline-primary mt-2" onclick="loadCustomers()">ลองใหม่</button></div>';
+            '<div class="empty-state"><i class="bi bi-exclamation-triangle" style="font-size: 3rem; opacity: 0.3;"></i><br>เกิดข้อผิดพลาดในการโหลดข้อมูล<br><button class="btn btn-outline-primary mt-2" onclick="loadCustomers()">ลองใหม่</button></div>';
         showNotification('เกิดข้อผิดพลาดในการโหลดข้อมูล', 'danger');
     }
 }
@@ -296,9 +340,15 @@ function displayPaginatedCustomers() {
 }
 
 function displayCustomers(customers) {
-    if (filteredCustomers.length === 0) {
+    if (customers.length === 0) {
         document.getElementById('customersTable').innerHTML = 
             '<div class="empty-state">ไม่พบข้อมูลลูกค้าที่ตรงกับการค้นหา</div>';
+        return;
+    }
+
+    // Check if mobile view
+    if (window.innerWidth <= 768) {
+        displayMobileCustomers(customers);
         return;
     }
 
@@ -348,6 +398,44 @@ function displayCustomers(customers) {
 
     tableHTML += '</tbody></table></div>';
     document.getElementById('customersTable').innerHTML = tableHTML;
+}
+
+function displayMobileCustomers(customers) {
+    let mobileHTML = '';
+    
+    customers.forEach(customer => {
+        const createdDate = new Date(customer.created_at).toLocaleDateString('th-TH');
+        const contractValue = customer.contract_value ? 
+            formatCurrency(customer.contract_value) : 'ไม่ระบุ';
+        const leadSourceBadge = customer.lead_source === 'Online' ? 
+            '<span class="badge badge-online">Online</span>' : 
+            '<span class="badge badge-offline">Offline</span>';
+        const salesPersonBadge = getSalesPersonBadge(customer.sales_person);
+
+        mobileHTML += `
+            <div class="mobile-table-card" onclick="viewCustomer(${customer.id})">
+                <div class="company-name">${customer.company_name || 'ไม่ระบุชื่อบริษัท'}</div>
+                <div class="contact-info">
+                    ${customer.contact_names ? `<i class="bi bi-person me-1"></i>${customer.contact_names}` : ''}
+                    ${customer.phone_number ? `<br><i class="bi bi-telephone me-1"></i>${customer.phone_number}` : ''}
+                    ${customer.email ? `<br><i class="bi bi-envelope me-1"></i>${customer.email}` : ''}
+                </div>
+                <div class="badges">
+                    ${leadSourceBadge}
+                    ${salesPersonBadge}
+                    <span class="badge bg-secondary">${contractValue}</span>
+                </div>
+                <div class="mt-2">
+                    <small class="text-muted">
+                        <i class="bi bi-calendar me-1"></i>${createdDate}
+                        ${customer.required_products ? ` • ${customer.required_products}` : ''}
+                    </small>
+                </div>
+            </div>
+        `;
+    });
+    
+    document.getElementById('customersTable').innerHTML = mobileHTML;
 }
 
 function updatePagination() {
@@ -410,61 +498,6 @@ function changePage(page) {
     displayPaginatedCustomers();
 }
 
-function displayCustomers(customers) {
-    if (customers.length === 0) {
-        document.getElementById('customersTable').innerHTML = 
-            '<div class="empty-state">ไม่พบข้อมูลลูกค้าที่ตรงกับการค้นหา</div>';
-        return;
-    }
-
-    let tableHTML = `
-        <div class="table-responsive">
-            <table class="table table-hover">
-                <thead>
-                    <tr>
-                        <th>ชื่อบริษัท</th>
-                        <th>ผู้ติดต่อ</th>
-                        <th>โทรศัพท์</th>
-                        <th>อีเมล</th>
-                        <th>ผลิตภัณฑ์ที่สนใจ</th>
-                        <th>แหล่งที่มา</th>
-                        <th>Sales Person</th>
-                        <th>Contract Value</th>
-                        <th>วันที่สร้าง</th>
-                    </tr>
-                </thead>
-                <tbody>
-    `;
-
-    customers.forEach(customer => {
-        const createdDate = new Date(customer.created_at).toLocaleDateString('th-TH');
-        const contractValue = customer.contract_value ? 
-            formatCurrency(customer.contract_value) : '-';
-        const leadSourceBadge = customer.lead_source === 'Online' ? 
-            '<span class="badge badge-online">Online</span>' : 
-            '<span class="badge badge-offline">Offline</span>';
-
-        const salesPersonBadge = getSalesPersonBadge(customer.sales_person);
-
-        tableHTML += `
-            <tr class="customer-row" onclick="viewCustomer(${customer.id})">
-                <td><strong>${customer.company_name || '-'}</strong></td>
-                <td class="text-truncate-custom">${customer.contact_names || '-'}</td>
-                <td>${customer.phone_number || '-'}</td>
-                <td class="text-truncate-custom">${customer.email || '-'}</td>
-                <td class="text-truncate-custom">${customer.required_products || '-'}</td>
-                <td>${leadSourceBadge}</td>
-                <td>${salesPersonBadge}</td>
-                <td>${contractValue}</td>
-                <td>${createdDate}</td>
-            </tr>
-        `;
-    });
-
-    tableHTML += '</tbody></table></div>';
-    document.getElementById('customersTable').innerHTML = tableHTML;
-}
-
 async function viewCustomer(customerId) {
     try {
         const response = await fetch(`/api/customers/${customerId}`);
@@ -525,14 +558,6 @@ function showCustomerDetail(customer) {
                                 ${customer.business_type || '-'}
                             </div>
                             <div class="col-md-6 mb-3">
-                                <strong>อุตสาหกรรม:</strong><br>
-                                ${customer.industry || '-'}
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <strong>NAICS/SIC Codes:</strong><br>
-                                ${customer.naics_sic_codes || '-'}
-                            </div>
-                            <div class="col-md-6 mb-3">
                                 <strong>ชื่อผู้ติดต่อ:</strong><br>
                                 ${customer.contact_names || '-'}
                             </div>
@@ -545,7 +570,7 @@ function showCustomerDetail(customer) {
                                 ${customer.contract_value ? formatCurrency(customer.contract_value) : '-'}
                             </div>
                             <div class="col-md-12 mb-3">
-                                <strong>ผลิตภัณฑ์/บริการที่ต้องการ:</strong><br>
+                                <strong>ผลิตภัณฑ์/บริการที่สนใจ:</strong><br>
                                 ${customer.required_products || '-'}
                             </div>
                             <div class="col-md-12 mb-3">
@@ -553,16 +578,8 @@ function showCustomerDetail(customer) {
                                 ${customer.contact_history || '-'}
                             </div>
                             <div class="col-md-12 mb-3">
-                                <strong>เกณฑ์การประเมิน:</strong><br>
-                                ${customer.evaluation_criteria || '-'}
-                            </div>
-                            <div class="col-md-12 mb-3">
                                 <strong>Pain Points และปัญหาที่ต้องการแก้ไข:</strong><br>
                                 ${customer.pain_points || '-'}
-                            </div>
-                            <div class="col-md-12 mb-3">
-                                <strong>เหตุผลการเลือก/ไม่เลือกเรา:</strong><br>
-                                ${customer.selection_reason || '-'}
                             </div>
                             <div class="col-md-6 mb-3">
                                 <strong>วันที่สร้าง:</strong><br>
@@ -574,7 +591,7 @@ function showCustomerDetail(customer) {
                             </div>
                         </div>
                     </div>
-                    <div class="modal-footer">
+                    <div class="modal-footer flex-wrap">
                         <button type="button" class="btn btn-info me-auto" onclick="showContactModal(${customer.id})">อัพเดตการติดต่อ</button>
                         <button type="button" class="btn btn-warning" onclick="showTaskModal(${customer.id}, '${customer.company_name}')">จัดการงาน</button>
                         <button type="button" class="btn btn-danger" onclick="deleteCustomer(${customer.id}, '${customer.company_name}')">ลบ</button>
@@ -611,27 +628,24 @@ function editCustomer(customerId) {
 function fillEditForm(customer) {
     showAddForm();
     
+    // Fill form with customer data (excluding removed fields)
     document.querySelector('input[name="company_name"]').value = customer.company_name || '';
     document.querySelector('input[name="email"]').value = customer.email || '';
     document.querySelector('textarea[name="location"]').value = customer.location || '';
     document.querySelector('textarea[name="registration_info"]').value = customer.registration_info || '';
     document.querySelector('input[name="business_type"]').value = customer.business_type || '';
-    document.querySelector('input[name="industry"]').value = customer.industry || '';
-    document.querySelector('input[name="naics_sic_codes"]').value = customer.naics_sic_codes || '';
     document.querySelector('textarea[name="contact_names"]').value = customer.contact_names || '';
     document.querySelector('input[name="phone_number"]').value = customer.phone_number || '';
     document.querySelector('input[name="budget"]').value = customer.budget || '';
     document.querySelector('textarea[name="contact_history"]').value = customer.contact_history || '';
-    document.querySelector('textarea[name="evaluation_criteria"]').value = customer.evaluation_criteria || '';
     document.querySelector('select[name="required_products"]').value = customer.required_products || '';
     document.querySelector('select[name="lead_source"]').value = customer.lead_source || '';
     document.querySelector('select[name="sales_person"]').value = customer.sales_person || '';
     document.querySelector('textarea[name="pain_points"]').value = customer.pain_points || '';
-    document.querySelector('textarea[name="selection_reason"]').value = customer.selection_reason || '';
     document.querySelector('input[name="contract_value"]').value = customer.contract_value || '';
     
-    document.querySelector('.card-title').textContent = 'แก้ไขข้อมูลลูกค้า';
-    document.querySelector('button[type="submit"]').textContent = 'อัปเดตข้อมูล';
+    document.querySelector('.card-title').innerHTML = '<i class="bi bi-pencil me-2"></i>แก้ไขข้อมูลลูกค้า';
+    document.querySelector('button[type="submit"]').innerHTML = '<i class="bi bi-check-lg me-1"></i>อัปเดตข้อมูล';
     document.querySelector('button[type="submit"]').onclick = function(e) {
         e.preventDefault();
         updateCustomer(customer.id);
@@ -642,21 +656,18 @@ async function updateCustomer(customerId) {
     const form = document.getElementById('customerForm');
     const formData = new FormData(form);
     
+    // Updated customer data structure (without removed fields)
     const customerData = {
         company_name: formData.get('company_name'),
         location: formData.get('location'),
         registration_info: formData.get('registration_info'),
         business_type: formData.get('business_type'),
-        industry: formData.get('industry'),
-        naics_sic_codes: formData.get('naics_sic_codes'),
         contact_names: formData.get('contact_names'),
         phone_number: formData.get('phone_number'),
         contact_history: formData.get('contact_history'),
         budget: formData.get('budget') ? parseFloat(formData.get('budget')) : null,
-        evaluation_criteria: formData.get('evaluation_criteria'),
         required_products: formData.get('required_products'),
         pain_points: formData.get('pain_points'),
-        selection_reason: formData.get('selection_reason'),
         contract_value: formData.get('contract_value') ? parseFloat(formData.get('contract_value')) : null,
         email: formData.get('email'),
         lead_source: formData.get('lead_source'),
@@ -673,16 +684,16 @@ async function updateCustomer(customerId) {
         });
 
         if (response.ok) {
-            alert('อัปเดตข้อมูลลูกค้าเรียบร้อยแล้ว');
+            showNotification('อัปเดตข้อมูลลูกค้าเรียบร้อยแล้ว', 'success');
             resetForm();
             hideAddForm();
             loadCustomers();
         } else {
-            alert('เกิดข้อผิดพลาดในการอัปเดตข้อมูล');
+            showNotification('เกิดข้อผิดพลาดในการอัปเดตข้อมูล', 'danger');
         }
     } catch (error) {
         console.error('Error:', error);
-        alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+        showNotification('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'danger');
     }
 }
 
@@ -697,25 +708,25 @@ async function deleteCustomer(customerId, companyName) {
         });
 
         if (response.ok) {
-            alert('ลบข้อมูลลูกค้าเรียบร้อยแล้ว');
+            showNotification('ลบข้อมูลลูกค้าเรียบร้อยแล้ว', 'success');
             loadCustomers();
             const modal = document.getElementById('customerModal');
             if (modal) {
                 bootstrap.Modal.getInstance(modal).hide();
             }
         } else {
-            alert('เกิดข้อผิดพลาดในการลบข้อมูล');
+            showNotification('เกิดข้อผิดพลาดในการลบข้อมูล', 'danger');
         }
     } catch (error) {
         console.error('Error:', error);
-        alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+        showNotification('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'danger');
     }
 }
 
 function resetForm() {
     document.getElementById('customerForm').reset();
-    document.querySelector('.card-title').textContent = 'เพิ่มข้อมูลลูกค้าใหม่';
-    document.querySelector('button[type="submit"]').textContent = 'บันทึกข้อมูล';
+    document.querySelector('.card-title').innerHTML = '<i class="bi bi-person-plus me-2"></i>เพิ่มข้อมูลลูกค้าใหม่';
+    document.querySelector('button[type="submit"]').innerHTML = '<i class="bi bi-check-lg me-1"></i>บันทึกข้อมูล';
     document.querySelector('button[type="submit"]').onclick = null;
 }
 
@@ -723,7 +734,7 @@ function exportToCSV() {
     const dataToExport = filteredCustomers.length > 0 ? filteredCustomers : allCustomers;
     
     if (dataToExport.length === 0) {
-        alert('ไม่มีข้อมูลลูกค้าที่จะส่งออก');
+        showNotification('ไม่มีข้อมูลลูกค้าที่จะส่งออก', 'warning');
         return;
     }
 
@@ -743,6 +754,8 @@ function exportToCSV() {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        
+        showNotification('ส่งออกข้อมูลเรียบร้อยแล้ว', 'success');
     }
 }
 
@@ -790,13 +803,10 @@ function initializeKeyboardShortcuts() {
         // Ctrl + F = ค้นหา
         if (e.ctrlKey && e.key === 'f') {
             e.preventDefault();
-            document.getElementById('searchInput').focus();
-        }
-        
-        // Ctrl + Shift + F = ค้นหาขั้นสูง
-        if (e.ctrlKey && e.shiftKey && e.key === 'F') {
-            e.preventDefault();
-            showAdvancedSearch();
+            const searchInput = document.getElementById('searchInput') || document.getElementById('searchInputMobile');
+            if (searchInput) {
+                searchInput.focus();
+            }
         }
         
         // Ctrl + T = งานที่ต้องทำ
@@ -819,7 +829,7 @@ function initializeKeyboardShortcuts() {
 function showNotification(message, type = 'info', duration = 3000) {
     const notification = document.createElement('div');
     notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
-    notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px; max-width: 400px;';
     
     notification.innerHTML = `
         ${message}
@@ -872,7 +882,7 @@ function showSettings() {
                                     <p class="card-text mb-1"><strong>จำนวนลูกค้าทั้งหมด:</strong> ${allCustomers.length} ราย</p>
                                     <p class="card-text mb-1"><strong>จำนวนที่แสดง:</strong> ${filteredCustomers.length} ราย</p>
                                     <p class="card-text mb-1"><strong>อัพเดตล่าสุด:</strong> ${lastUpdateTime ? new Date(lastUpdateTime).toLocaleString('th-TH') : 'ไม่ทราบ'}</p>
-                                    <p class="card-text mb-0"><strong>เวอร์ชั่น:</strong> 1.0.0</p>
+                                    <p class="card-text mb-0"><strong>เวอร์ชั่น:</strong> 1.1.0</p>
                                 </div>
                             </div>
                         </div>
@@ -883,7 +893,6 @@ function showSettings() {
                                 <div class="card-body small">
                                     <p class="mb-1"><kbd>Ctrl + N</kbd> เพิ่มลูกค้าใหม่</p>
                                     <p class="mb-1"><kbd>Ctrl + F</kbd> ค้นหา</p>
-                                    <p class="mb-1"><kbd>Ctrl + Shift + F</kbd> ค้นหาขั้นสูง</p>
                                     <p class="mb-1"><kbd>Ctrl + T</kbd> งานที่ต้องทำ</p>
                                     <p class="mb-0"><kbd>Esc</kbd> ปิด Modal</p>
                                 </div>
@@ -996,13 +1005,13 @@ function isValidPhone(phone) {
     return phoneRegex.test(phone) && phone.replace(/\D/g, '').length >= 9;
 }
 
+// Updated convertToCSV function to exclude removed fields
 function convertToCSV(data) {
     const headers = [
         'ID', 'ชื่อบริษัท', 'ที่ตั้ง', 'ข้อมูลการจดทะเบียน', 'ประเภทธุรกิจ', 
-        'อุตสาหกรรม', 'NAICS/SIC Codes', 'ชื่อผู้ติดต่อ', 'เบอร์โทรศัพท์', 
-        'ประวัติการติดต่อ', 'งบประมาณ', 'เกณฑ์การประเมิน', 'ผลิตภัณฑ์ที่ต้องการ', 
-        'Pain Points', 'เหตุผลการเลือก', 'Contract Value', 'อีเมล', 
-        'แหล่งที่มา Lead', 'วันที่สร้าง', 'แก้ไขล่าสุด'
+        'ชื่อผู้ติดต่อ', 'เบอร์โทรศัพท์', 'ประวัติการติดต่อ', 'งบประมาณ', 
+        'ผลิตภัณฑ์ที่สนใจ', 'Pain Points', 'Contract Value', 'อีเมล', 
+        'แหล่งที่มา Lead', 'Sales Person', 'วันที่สร้าง', 'แก้ไขล่าสุด'
     ];
 
     const csvRows = [headers.join(',')];
@@ -1014,19 +1023,16 @@ function convertToCSV(data) {
             `"${customer.location || ''}"`,
             `"${customer.registration_info || ''}"`,
             `"${customer.business_type || ''}"`,
-            `"${customer.industry || ''}"`,
-            `"${customer.naics_sic_codes || ''}"`,
             `"${customer.contact_names || ''}"`,
             `"${customer.phone_number || ''}"`,
             `"${customer.contact_history || ''}"`,
             customer.budget || '',
-            `"${customer.evaluation_criteria || ''}"`,
             `"${customer.required_products || ''}"`,
             `"${customer.pain_points || ''}"`,
-            `"${customer.selection_reason || ''}"`,
             customer.contract_value || '',
             `"${customer.email || ''}"`,
             `"${customer.lead_source || ''}"`,
+            `"${customer.sales_person || ''}"`,
             `"${new Date(customer.created_at).toLocaleString('th-TH')}"`,
             `"${new Date(customer.updated_at).toLocaleString('th-TH')}"`
         ];
@@ -1042,6 +1048,13 @@ function clearFilters() {
     document.getElementById('productFilter').value = '';
     document.getElementById('salesPersonFilter').value = '';
     document.getElementById('sortBy').value = 'created_at_desc';
+    
+    // Clear mobile filters too
+    document.getElementById('searchInputMobile').value = '';
+    document.getElementById('sortByMobile').value = 'created_at_desc';
+    document.getElementById('leadSourceFilterMobile').value = '';
+    document.getElementById('productFilterMobile').value = '';
+    document.getElementById('salesPersonFilterMobile').value = '';
     
     advancedSearchCriteria = {};
     currentSort = 'created_at_desc';
@@ -1075,6 +1088,7 @@ async function showTasksView() {
     document.getElementById('taskAssigneeFilter').addEventListener('change', loadAllTasks);
 }
 
+// Task management functions
 async function loadTasksDashboard() {
     try {
         const response = await fetch('/api/tasks/dashboard');
@@ -1193,130 +1207,6 @@ function generateTasksTable(tasks) {
     return tableHTML;
 }
 
-async function showTaskModal(customerId, companyName) {
-    const taskModalHTML = `
-        <div class="modal fade" id="taskModal" tabindex="-1">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">จัดการงาน - ${companyName}</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <form id="taskForm">
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">ชื่องาน *</label>
-                                    <input type="text" class="form-control" name="title" required>
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">ประเภทงาน *</label>
-                                    <select class="form-select" name="task_type" required>
-                                        <option value="">เลือกประเภท</option>
-                                        <option value="ติดตาม">ติดตาม</option>
-                                        <option value="นำเสนอ">นำเสนอ</option>
-                                        <option value="เจรจา">เจรจา</option>
-                                        <option value="ส่งเอกสาร">ส่งเอกสาร</option>
-                                        <option value="นัดหมาย">นัดหมาย</option>
-                                        <option value="อื่นๆ">อื่นๆ</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-12 mb-3">
-                                    <label class="form-label">รายละเอียด</label>
-                                    <textarea class="form-control" name="description" rows="2"></textarea>
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">ความสำคัญ</label>
-                                    <select class="form-select" name="priority">
-                                        <option value="Low">ต่ำ</option>
-                                        <option value="Medium" selected>ปานกลาง</option>
-                                        <option value="High">สูง</option>
-                                        <option value="Urgent">ด่วน</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">ผู้รับผิดชอบ</label>
-                                    <select class="form-select" name="assigned_to">
-                                        <option value="">เลือกผู้รับผิดชอบ</option>
-                                        <option value="Aui">Aui</option>
-                                        <option value="Ink">Ink</option>
-                                        <option value="Puri">Puri</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">กำหนดเสร็จ</label>
-                                    <input type="date" class="form-control" name="due_date">
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">แจ้งเตือนก่อน</label>
-                                    <input type="datetime-local" class="form-control" name="reminder_date">
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">ผู้สร้าง</label>
-                                    <input type="text" class="form-control" name="created_by" value="Admin">
-                                </div>
-                            </div>
-                            <button type="submit" class="btn btn-primary w-100">สร้างงาน</button>
-                        </form>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ปิด</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-
-    document.body.insertAdjacentHTML('beforeend', taskModalHTML);
-    const modal = new bootstrap.Modal(document.getElementById('taskModal'));
-    modal.show();
-
-    document.getElementById('taskForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        addTask(customerId);
-    });
-
-    document.getElementById('taskModal').addEventListener('hidden.bs.modal', function () {
-        this.remove();
-    });
-}
-
-async function addTask(customerId) {
-    const form = document.getElementById('taskForm');
-    const formData = new FormData(form);
-
-    const taskData = {
-        title: formData.get('title'),
-        description: formData.get('description'),
-        task_type: formData.get('task_type'),
-        priority: formData.get('priority'),
-        assigned_to: formData.get('assigned_to'),
-        due_date: formData.get('due_date') || null,
-        reminder_date: formData.get('reminder_date') || null,
-        created_by: formData.get('created_by')
-    };
-
-    try {
-        const response = await fetch(`/api/customers/${customerId}/tasks`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(taskData)
-        });
-
-        if (response.ok) {
-            alert('สร้างงานเรียบร้อยแล้ว');
-            document.getElementById('taskModal').querySelector('[data-bs-dismiss="modal"]').click();
-        } else {
-            alert('เกิดข้อผิดพลาดในการสร้างงาน');
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
-    }
-}
-
 async function updateTaskStatus(taskId, status) {
     const completed_at = status === 'Completed' ? new Date().toISOString() : null;
     
@@ -1332,12 +1222,13 @@ async function updateTaskStatus(taskId, status) {
         if (response.ok) {
             loadTasksDashboard();
             loadAllTasks();
+            showNotification('อัพเดตสถานะงานเรียบร้อยแล้ว', 'success');
         } else {
-            alert('เกิดข้อผิดพลาดในการอัพเดตสถานะ');
+            showNotification('เกิดข้อผิดพลาดในการอัพเดตสถานะ', 'danger');
         }
     } catch (error) {
         console.error('Error:', error);
-        alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+        showNotification('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'danger');
     }
 }
 
@@ -1370,6 +1261,56 @@ function getStatusText(status) {
     };
     return texts[status] || status;
 }
+
+function quickFilter(filterType) {
+    // ล้างตัวกรองเดิม
+    clearFilters();
+    
+    const today = new Date();
+    const sevenDaysAgo = new Date(today.getTime() - (7 * 24 * 60 * 60 * 1000));
+    
+    switch(filterType) {
+        case 'high_value':
+            // Filter customers with contract value > 100,000
+            filteredCustomers = allCustomers.filter(customer => 
+                customer.contract_value && customer.contract_value > 100000
+            );
+            break;
+            
+        case 'recent':
+            // Filter customers created in last 7 days
+            filteredCustomers = allCustomers.filter(customer => 
+                new Date(customer.created_at) >= sevenDaysAgo
+            );
+            break;
+            
+        case 'no_contact':
+            // Filter customers with no contract value
+            filteredCustomers = allCustomers.filter(customer => 
+                !customer.contract_value || customer.contract_value === 0
+            );
+            break;
+            
+        case 'online_leads':
+            document.getElementById('leadSourceFilter').value = 'Online';
+            document.getElementById('leadSourceFilterMobile').value = 'Online';
+            filterAndSort();
+            return;
+    }
+    
+    sortCustomers();
+    displayPaginatedCustomers();
+}
+
+function formatCurrency(amount) {
+    return new Intl.NumberFormat('th-TH', { 
+        style: 'currency', 
+        currency: 'THB' 
+    }).format(amount);
+}
+
+// Advanced search functionality
+let advancedSearchCriteria = {};
 
 function showAdvancedSearch() {
     const advancedSearchHTML = `
@@ -1404,10 +1345,6 @@ function showAdvancedSearch() {
                                     <input type="text" class="form-control" name="business_type" placeholder="ค้นหาประเภทธุรกิจ">
                                 </div>
                                 <div class="col-md-6 mb-3">
-                                    <label class="form-label">อุตสาหกรรม</label>
-                                    <input type="text" class="form-control" name="industry" placeholder="ค้นหาอุตสาหกรรม">
-                                </div>
-                                <div class="col-md-6 mb-3">
                                     <label class="form-label">งบประมาณ (ตั้งแต่)</label>
                                     <input type="number" class="form-control" name="budget_from" placeholder="0">
                                 </div>
@@ -1435,17 +1372,9 @@ function showAdvancedSearch() {
                                     <label class="form-label">ที่ตั้ง</label>
                                     <input type="text" class="form-control" name="location" placeholder="ค้นหาที่ตั้ง">
                                 </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">NAICS/SIC Codes</label>
-                                    <input type="text" class="form-control" name="naics_sic_codes" placeholder="ค้นหารหัส">
-                                </div>
                                 <div class="col-md-12 mb-3">
                                     <label class="form-label">Pain Points</label>
                                     <input type="text" class="form-control" name="pain_points" placeholder="ค้นหาปัญหาที่ต้องการแก้ไข">
-                                </div>
-                                <div class="col-md-12 mb-3">
-                                    <label class="form-label">เหตุผลการเลือก/ไม่เลือกเรา</label>
-                                    <input type="text" class="form-control" name="selection_reason" placeholder="ค้นหาเหตุผล">
                                 </div>
                             </div>
                         </form>
@@ -1468,8 +1397,6 @@ function showAdvancedSearch() {
         this.remove();
     });
 }
-
-let advancedSearchCriteria = {};
 
 function executeAdvancedSearch() {
     const form = document.getElementById('advancedSearchForm');
@@ -1515,7 +1442,7 @@ function updateSearchStatus() {
                 <button type="button" class="btn-close" onclick="clearAllAdvancedSearch()"></button>
             </div>
         `;
-        document.querySelector('.card-body').insertAdjacentHTML('afterbegin', statusHTML);
+        document.querySelector('#customersList .card-body').insertAdjacentHTML('afterbegin', statusHTML);
     }
 }
 
@@ -1526,70 +1453,7 @@ function clearAllAdvancedSearch() {
     updateSearchStatus();
 }
 
-function quickFilter(filterType) {
-    // ล้างตัวกรองเดิม
-    clearFilters();
-    
-    const today = new Date();
-    const sevenDaysAgo = new Date(today.getTime() - (7 * 24 * 60 * 60 * 1000));
-    
-    switch(filterType) {
-        case 'high_value':
-            advancedSearchCriteria = {
-                contract_value_from: '100000'
-            };
-            break;
-            
-        case 'recent':
-            advancedSearchCriteria = {
-                created_from: sevenDaysAgo.toISOString().split('T')[0]
-            };
-            break;
-            
-        case 'no_contact':
-            // ใช้ฟิลเตอร์พิเศษสำหรับลูกค้าที่ไม่มี Contract Value หรือ = 0
-            filteredCustomers = allCustomers.filter(customer => 
-                !customer.contract_value || customer.contract_value === 0
-            );
-            sortCustomers();
-            displayPaginatedCustomers();
-            updateSearchStatus();
-            return;
-            
-        case 'online_leads':
-            document.getElementById('leadSourceFilter').value = 'Online';
-            break;
-    }
-    
-    currentPage = 1;
-    filterAndSort();
-    updateSearchStatus();
-}
-
-function exportFilteredData() {
-    if (filteredCustomers.length === 0) {
-        alert('ไม่มีข้อมูลที่จะส่งออก');
-        return;
-    }
-
-    const csvContent = convertToCSV(filteredCustomers);
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    
-    if (link.download !== undefined) {
-        const url = URL.createObjectURL(blob);
-        link.setAttribute('href', url);
-        
-        const filterStatus = Object.keys(advancedSearchCriteria).length > 0 ? '_filtered' : '';
-        link.setAttribute('download', `customers${filterStatus}_${new Date().toISOString().split('T')[0]}.csv`);
-        
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    }
-}
-
+// Contact modal functions
 async function showContactModal(customerId) {
     try {
         const [customerRes, contactsRes] = await Promise.all([
@@ -1765,20 +1629,148 @@ async function addContactLog(customerId) {
         });
 
         if (response.ok) {
-            alert('บันทึกการติดต่อเรียบร้อยแล้ว');
+            showNotification('บันทึกการติดต่อเรียบร้อยแล้ว', 'success');
             document.getElementById('contactModal').querySelector('[data-bs-dismiss="modal"]').click();
         } else {
-            alert('เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+            showNotification('เกิดข้อผิดพลาดในการบันทึกข้อมูล', 'danger');
         }
     } catch (error) {
         console.error('Error:', error);
-        alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+        showNotification('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'danger');
     }
 }
 
-function formatCurrency(amount) {
-    return new Intl.NumberFormat('th-TH', { 
-        style: 'currency', 
-        currency: 'THB' 
-    }).format(amount);
+// Task modal functions
+async function showTaskModal(customerId, companyName) {
+    const taskModalHTML = `
+        <div class="modal fade" id="taskModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">จัดการงาน - ${companyName}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="taskForm">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">ชื่องาน *</label>
+                                    <input type="text" class="form-control" name="title" required>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">ประเภทงาน *</label>
+                                    <select class="form-select" name="task_type" required>
+                                        <option value="">เลือกประเภท</option>
+                                        <option value="ติดตาม">ติดตาม</option>
+                                        <option value="นำเสนอ">นำเสนอ</option>
+                                        <option value="เจรจา">เจรจา</option>
+                                        <option value="ส่งเอกสาร">ส่งเอกสาร</option>
+                                        <option value="นัดหมาย">นัดหมาย</option>
+                                        <option value="อื่นๆ">อื่นๆ</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-12 mb-3">
+                                    <label class="form-label">รายละเอียด</label>
+                                    <textarea class="form-control" name="description" rows="2"></textarea>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">ความสำคัญ</label>
+                                    <select class="form-select" name="priority">
+                                        <option value="Low">ต่ำ</option>
+                                        <option value="Medium" selected>ปานกลาง</option>
+                                        <option value="High">สูง</option>
+                                        <option value="Urgent">ด่วน</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">ผู้รับผิดชอบ</label>
+                                    <select class="form-select" name="assigned_to">
+                                        <option value="">เลือกผู้รับผิดชอบ</option>
+                                        <option value="Aui">Aui</option>
+                                        <option value="Ink">Ink</option>
+                                        <option value="Puri">Puri</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">กำหนดเสร็จ</label>
+                                    <input type="date" class="form-control" name="due_date">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">แจ้งเตือนก่อน</label>
+                                    <input type="datetime-local" class="form-control" name="reminder_date">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">ผู้สร้าง</label>
+                                    <input type="text" class="form-control" name="created_by" value="Admin">
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">สร้างงาน</button>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ปิด</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', taskModalHTML);
+    const modal = new bootstrap.Modal(document.getElementById('taskModal'));
+    modal.show();
+
+    document.getElementById('taskForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        addTask(customerId);
+    });
+
+    document.getElementById('taskModal').addEventListener('hidden.bs.modal', function () {
+        this.remove();
+    });
 }
+
+async function addTask(customerId) {
+    const form = document.getElementById('taskForm');
+    const formData = new FormData(form);
+
+    const taskData = {
+        title: formData.get('title'),
+        description: formData.get('description'),
+        task_type: formData.get('task_type'),
+        priority: formData.get('priority'),
+        assigned_to: formData.get('assigned_to'),
+        due_date: formData.get('due_date') || null,
+        reminder_date: formData.get('reminder_date') || null,
+        created_by: formData.get('created_by')
+    };
+
+    try {
+        const response = await fetch(`/api/customers/${customerId}/tasks`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(taskData)
+        });
+
+        if (response.ok) {
+            showNotification('สร้างงานเรียบร้อยแล้ว', 'success');
+            document.getElementById('taskModal').querySelector('[data-bs-dismiss="modal"]').click();
+        } else {
+            showNotification('เกิดข้อผิดพลาดในการสร้างงาน', 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showNotification('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'danger');
+    }
+}
+
+// Handle window resize for responsive table
+window.addEventListener('resize', debounce(function() {
+    if (filteredCustomers.length > 0) {
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        const paginatedData = filteredCustomers.slice(startIndex, endIndex);
+        displayCustomers(paginatedData);
+    }
+}, 250));
