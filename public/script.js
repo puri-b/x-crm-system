@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const leadSourceFilter = document.getElementById('leadSourceFilter');
     const productFilter = document.getElementById('productFilter');
     const salesPersonFilter = document.getElementById('salesPersonFilter');
+    const statusFilter = document.getElementById('statusFilter');
     const sortBy = document.getElementById('sortBy');
 
     if (searchInput) {
@@ -45,6 +46,13 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    if (statusFilter) {
+        statusFilter.addEventListener('change', function() {
+            currentPage = 1;
+            filterAndSort();
+        });
+    }
+
     if (sortBy) {
         sortBy.addEventListener('change', function() {
             currentSort = this.value;
@@ -61,7 +69,8 @@ function setupMobileFilters() {
         'sortByMobile': 'sortBy',
         'leadSourceFilterMobile': 'leadSourceFilter',
         'productFilterMobile': 'productFilter',
-        'salesPersonFilterMobile': 'salesPersonFilter'
+        'salesPersonFilterMobile': 'salesPersonFilter',
+        'statusFilterMobile': 'statusFilter'
     };
 
     Object.entries(mobileInputs).forEach(([mobileId, desktopId]) => {
@@ -130,7 +139,6 @@ async function addCustomer() {
         return;
     }
     
-    // Removed fields: industry, naics_sic_codes, evaluation_criteria, selection_reason
     const customerData = {
         company_name: formData.get('company_name'),
         location: formData.get('location'),
@@ -145,7 +153,8 @@ async function addCustomer() {
         contract_value: formData.get('contract_value') ? parseFloat(formData.get('contract_value')) : null,
         email: formData.get('email'),
         lead_source: formData.get('lead_source'),
-        sales_person: formData.get('sales_person')
+        sales_person: formData.get('sales_person'),
+        customer_status: formData.get('customer_status')
     };
 
     // Show loading
@@ -216,11 +225,13 @@ function filterAndSort() {
     const leadSourceFilter = document.getElementById('leadSourceFilter');
     const productFilter = document.getElementById('productFilter');
     const salesPersonFilter = document.getElementById('salesPersonFilter');
+    const statusFilter = document.getElementById('statusFilter');
 
     const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
     const leadSourceValue = leadSourceFilter ? leadSourceFilter.value : '';
     const productValue = productFilter ? productFilter.value : '';
     const salesPersonValue = salesPersonFilter ? salesPersonFilter.value : '';
+    const statusValue = statusFilter ? statusFilter.value : '';
 
     // กรองข้อมูล
     filteredCustomers = allCustomers.filter(customer => {
@@ -237,6 +248,8 @@ function filterAndSort() {
             (customer.required_products && customer.required_products.includes(productValue));
 
         const matchesSalesPerson = !salesPersonValue || customer.sales_person === salesPersonValue;
+        
+        const matchesStatus = !statusValue || customer.customer_status === statusValue;
 
         // Advanced search
         let matchesAdvanced = true;
@@ -285,7 +298,7 @@ function filterAndSort() {
             }
         }
 
-        return matchesSearch && matchesLeadSource && matchesProduct && matchesSalesPerson && matchesAdvanced;
+        return matchesSearch && matchesLeadSource && matchesProduct && matchesSalesPerson && matchesStatus && matchesAdvanced;
     });
 
     // เรียงลำดับข้อมูล
@@ -364,6 +377,7 @@ function displayCustomers(customers) {
                         <th>ผลิตภัณฑ์ที่สนใจ</th>
                         <th>แหล่งที่มา</th>
                         <th>Sales Person</th>
+                        <th>สถานะ</th>
                         <th>Contract Value</th>
                         <th>วันที่สร้าง</th>
                     </tr>
@@ -380,6 +394,7 @@ function displayCustomers(customers) {
             '<span class="badge badge-offline">Offline</span>';
 
         const salesPersonBadge = getSalesPersonBadge(customer.sales_person);
+        const statusBadge = getCustomerStatusBadge(customer.customer_status);
 
         tableHTML += `
             <tr class="customer-row" onclick="viewCustomer(${customer.id})">
@@ -390,6 +405,7 @@ function displayCustomers(customers) {
                 <td class="text-truncate-custom">${customer.required_products || '-'}</td>
                 <td>${leadSourceBadge}</td>
                 <td>${salesPersonBadge}</td>
+                <td>${statusBadge}</td>
                 <td>${contractValue}</td>
                 <td>${createdDate}</td>
             </tr>
@@ -411,6 +427,7 @@ function displayMobileCustomers(customers) {
             '<span class="badge badge-online">Online</span>' : 
             '<span class="badge badge-offline">Offline</span>';
         const salesPersonBadge = getSalesPersonBadge(customer.sales_person);
+        const statusBadge = getCustomerStatusBadge(customer.customer_status);
 
         mobileHTML += `
             <div class="mobile-table-card" onclick="viewCustomer(${customer.id})">
@@ -421,6 +438,7 @@ function displayMobileCustomers(customers) {
                     ${customer.email ? `<br><i class="bi bi-envelope me-1"></i>${customer.email}` : ''}
                 </div>
                 <div class="badges">
+                    ${statusBadge}
                     ${leadSourceBadge}
                     ${salesPersonBadge}
                     <span class="badge bg-secondary">${contractValue}</span>
@@ -438,6 +456,20 @@ function displayMobileCustomers(customers) {
     document.getElementById('customersTable').innerHTML = mobileHTML;
 }
 
+function getCustomerStatusBadge(status) {
+    if (!status) return '<span class="badge bg-secondary">ไม่ระบุ</span>';
+    
+    const colors = {
+        'Lead': 'bg-secondary',
+        'Potential': 'bg-info',
+        'Prospect': 'bg-warning',
+        'Pipeline': 'bg-primary',
+        'PO': 'bg-success',
+        'Close': 'bg-dark'
+    };
+    
+    return `<span class="badge ${colors[status] || 'bg-secondary'}">${status}</span>`;
+}
 function updatePagination() {
     const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
     const paginationNav = document.getElementById('paginationNav');
@@ -545,6 +577,10 @@ function showCustomerDetail(customer) {
                                 <strong>Sales Person:</strong><br>
                                 ${getSalesPersonBadge(customer.sales_person)}
                             </div>
+                            <div class="col-md-6 mb-3">
+                                <strong>สถานะลูกค้า:</strong><br>
+                                ${getCustomerStatusBadge(customer.customer_status)}
+                            </div>
                             <div class="col-md-12 mb-3">
                                 <strong>ที่ตั้ง:</strong><br>
                                 ${customer.location || '-'}
@@ -628,7 +664,7 @@ function editCustomer(customerId) {
 function fillEditForm(customer) {
     showAddForm();
     
-    // Fill form with customer data (excluding removed fields)
+    // Fill form with customer data
     document.querySelector('input[name="company_name"]').value = customer.company_name || '';
     document.querySelector('input[name="email"]').value = customer.email || '';
     document.querySelector('textarea[name="location"]').value = customer.location || '';
@@ -641,6 +677,7 @@ function fillEditForm(customer) {
     document.querySelector('select[name="required_products"]').value = customer.required_products || '';
     document.querySelector('select[name="lead_source"]').value = customer.lead_source || '';
     document.querySelector('select[name="sales_person"]').value = customer.sales_person || '';
+    document.querySelector('select[name="customer_status"]').value = customer.customer_status || 'Lead';
     document.querySelector('textarea[name="pain_points"]').value = customer.pain_points || '';
     document.querySelector('input[name="contract_value"]').value = customer.contract_value || '';
     
@@ -656,7 +693,6 @@ async function updateCustomer(customerId) {
     const form = document.getElementById('customerForm');
     const formData = new FormData(form);
     
-    // Updated customer data structure (without removed fields)
     const customerData = {
         company_name: formData.get('company_name'),
         location: formData.get('location'),
@@ -671,7 +707,8 @@ async function updateCustomer(customerId) {
         contract_value: formData.get('contract_value') ? parseFloat(formData.get('contract_value')) : null,
         email: formData.get('email'),
         lead_source: formData.get('lead_source'),
-        sales_person: formData.get('sales_person')
+        sales_person: formData.get('sales_person'),
+        customer_status: formData.get('customer_status')
     };
 
     try {
@@ -982,6 +1019,10 @@ function validateForm(formData) {
         errors.push('Sales Person เป็นข้อมูลที่จำเป็น');
     }
     
+    if (!formData.get('customer_status')?.trim()) {
+        errors.push('สถานะลูกค้าเป็นข้อมูลที่จำเป็น');
+    }
+    
     const email = formData.get('email');
     if (email && !isValidEmail(email)) {
         errors.push('รูปแบบอีเมลไม่ถูกต้อง');
@@ -1005,13 +1046,12 @@ function isValidPhone(phone) {
     return phoneRegex.test(phone) && phone.replace(/\D/g, '').length >= 9;
 }
 
-// Updated convertToCSV function to exclude removed fields
 function convertToCSV(data) {
     const headers = [
         'ID', 'ชื่อบริษัท', 'ที่ตั้ง', 'ข้อมูลการจดทะเบียน', 'ประเภทธุรกิจ', 
         'ชื่อผู้ติดต่อ', 'เบอร์โทรศัพท์', 'ประวัติการติดต่อ', 'งบประมาณ', 
         'ผลิตภัณฑ์ที่สนใจ', 'Pain Points', 'Contract Value', 'อีเมล', 
-        'แหล่งที่มา Lead', 'Sales Person', 'วันที่สร้าง', 'แก้ไขล่าสุด'
+        'แหล่งที่มา Lead', 'Sales Person', 'สถานะลูกค้า', 'วันที่สร้าง', 'แก้ไขล่าสุด'
     ];
 
     const csvRows = [headers.join(',')];
@@ -1033,6 +1073,7 @@ function convertToCSV(data) {
             `"${customer.email || ''}"`,
             `"${customer.lead_source || ''}"`,
             `"${customer.sales_person || ''}"`,
+            `"${customer.customer_status || ''}"`,
             `"${new Date(customer.created_at).toLocaleString('th-TH')}"`,
             `"${new Date(customer.updated_at).toLocaleString('th-TH')}"`
         ];
@@ -1047,6 +1088,7 @@ function clearFilters() {
     document.getElementById('leadSourceFilter').value = '';
     document.getElementById('productFilter').value = '';
     document.getElementById('salesPersonFilter').value = '';
+    document.getElementById('statusFilter').value = '';
     document.getElementById('sortBy').value = 'created_at_desc';
     
     // Clear mobile filters too
@@ -1055,6 +1097,7 @@ function clearFilters() {
     document.getElementById('leadSourceFilterMobile').value = '';
     document.getElementById('productFilterMobile').value = '';
     document.getElementById('salesPersonFilterMobile').value = '';
+    document.getElementById('statusFilterMobile').value = '';
     
     advancedSearchCriteria = {};
     currentSort = 'created_at_desc';
@@ -1345,6 +1388,18 @@ function showAdvancedSearch() {
                                     <input type="text" class="form-control" name="business_type" placeholder="ค้นหาประเภทธุรกิจ">
                                 </div>
                                 <div class="col-md-6 mb-3">
+                                    <label class="form-label">สถานะลูกค้า</label>
+                                    <select class="form-select" name="customer_status">
+                                        <option value="">เลือกสถานะ</option>
+                                        <option value="Lead">Lead</option>
+                                        <option value="Potential">Potential</option>
+                                        <option value="Prospect">Prospect</option>
+                                        <option value="Pipeline">Pipeline</option>
+                                        <option value="PO">PO</option>
+                                        <option value="Close">Close</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6 mb-3">
                                     <label class="form-label">งบประมาณ (ตั้งแต่)</label>
                                     <input type="number" class="form-control" name="budget_from" placeholder="0">
                                 </div>
@@ -1533,6 +1588,18 @@ async function showContactModal(customerId) {
                                             <textarea class="form-control" name="notes" rows="2" placeholder="หมายเหตุเพิ่มเติม"></textarea>
                                         </div>
                                         <div class="mb-3">
+                                            <label class="form-label">อัพเดตสถานะลูกค้า</label>
+                                            <select class="form-select" name="customer_status_update">
+                                                <option value="">ไม่เปลี่ยน (${customer.customer_status || 'ไม่ระบุ'})</option>
+                                                <option value="Lead">Lead</option>
+                                                <option value="Potential">Potential</option>
+                                                <option value="Prospect">Prospect</option>
+                                                <option value="Pipeline">Pipeline</option>
+                                                <option value="PO">PO</option>
+                                                <option value="Close">Close</option>
+                                            </select>
+                                        </div>
+                                        <div class="mb-3">
                                             <label class="form-label">ผู้บันทึก</label>
                                             <input type="text" class="form-control" name="created_by" placeholder="ชื่อผู้บันทึก" value="Admin">
                                         </div>
@@ -1616,7 +1683,8 @@ async function addContactLog(customerId) {
         contact_details: formData.get('contact_details'),
         next_follow_up: formData.get('next_follow_up') || null,
         notes: formData.get('notes'),
-        created_by: formData.get('created_by')
+        created_by: formData.get('created_by'),
+        customer_status_update: formData.get('customer_status_update') || null
     };
 
     try {
@@ -1631,6 +1699,8 @@ async function addContactLog(customerId) {
         if (response.ok) {
             showNotification('บันทึกการติดต่อเรียบร้อยแล้ว', 'success');
             document.getElementById('contactModal').querySelector('[data-bs-dismiss="modal"]').click();
+            // Refresh customer list to show updated status
+            loadCustomers();
         } else {
             showNotification('เกิดข้อผิดพลาดในการบันทึกข้อมูล', 'danger');
         }
@@ -1654,7 +1724,8 @@ async function showTaskModal(customerId, companyName) {
                         <form id="taskForm">
                             <div class="row">
                                 <div class="col-md-6 mb-3">
-                                    <label class="form-label">ชื่องาน *</label>
+                                    <label class="form-label">ชื่องาน *
+                                    </label>
                                     <input type="text" class="form-control" name="title" required>
                                 </div>
                                 <div class="col-md-6 mb-3">
@@ -1714,63 +1785,59 @@ async function showTaskModal(customerId, companyName) {
             </div>
         </div>
     `;
-
     document.body.insertAdjacentHTML('beforeend', taskModalHTML);
-    const modal = new bootstrap.Modal(document.getElementById('taskModal'));
-    modal.show();
+const modal = new bootstrap.Modal(document.getElementById('taskModal'));
+modal.show();
 
-    document.getElementById('taskForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        addTask(customerId);
-    });
+document.getElementById('taskForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    addTask(customerId);
+});
 
-    document.getElementById('taskModal').addEventListener('hidden.bs.modal', function () {
-        this.remove();
-    });
+document.getElementById('taskModal').addEventListener('hidden.bs.modal', function () {
+    this.remove();
+});
 }
-
 async function addTask(customerId) {
-    const form = document.getElementById('taskForm');
-    const formData = new FormData(form);
+const form = document.getElementById('taskForm');
+const formData = new FormData(form);
+const taskData = {
+    title: formData.get('title'),
+    description: formData.get('description'),
+    task_type: formData.get('task_type'),
+    priority: formData.get('priority'),
+    assigned_to: formData.get('assigned_to'),
+    due_date: formData.get('due_date') || null,
+    reminder_date: formData.get('reminder_date') || null,
+    created_by: formData.get('created_by')
+};
 
-    const taskData = {
-        title: formData.get('title'),
-        description: formData.get('description'),
-        task_type: formData.get('task_type'),
-        priority: formData.get('priority'),
-        assigned_to: formData.get('assigned_to'),
-        due_date: formData.get('due_date') || null,
-        reminder_date: formData.get('reminder_date') || null,
-        created_by: formData.get('created_by')
-    };
+try {
+    const response = await fetch(`/api/customers/${customerId}/tasks`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(taskData)
+    });
 
-    try {
-        const response = await fetch(`/api/customers/${customerId}/tasks`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(taskData)
-        });
-
-        if (response.ok) {
-            showNotification('สร้างงานเรียบร้อยแล้ว', 'success');
-            document.getElementById('taskModal').querySelector('[data-bs-dismiss="modal"]').click();
-        } else {
-            showNotification('เกิดข้อผิดพลาดในการสร้างงาน', 'danger');
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        showNotification('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'danger');
+    if (response.ok) {
+        showNotification('สร้างงานเรียบร้อยแล้ว', 'success');
+        document.getElementById('taskModal').querySelector('[data-bs-dismiss="modal"]').click();
+    } else {
+        showNotification('เกิดข้อผิดพลาดในการสร้างงาน', 'danger');
     }
+} catch (error) {
+    console.error('Error:', error);
+    showNotification('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'danger');
 }
-
+}
 // Handle window resize for responsive table
 window.addEventListener('resize', debounce(function() {
-    if (filteredCustomers.length > 0) {
-        const startIndex = (currentPage - 1) * itemsPerPage;
-        const endIndex = startIndex + itemsPerPage;
-        const paginatedData = filteredCustomers.slice(startIndex, endIndex);
-        displayCustomers(paginatedData);
-    }
+if (filteredCustomers.length > 0) {
+const startIndex = (currentPage - 1) * itemsPerPage;
+const endIndex = startIndex + itemsPerPage;
+const paginatedData = filteredCustomers.slice(startIndex, endIndex);
+displayCustomers(paginatedData);
+}
 }, 250));

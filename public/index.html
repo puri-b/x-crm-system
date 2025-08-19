@@ -156,6 +156,20 @@
                                         
                                         <div class="col-md-6 mb-3">
                                             <label class="form-label">
+                                                <i class="bi bi-flag me-1"></i>สถานะลูกค้า *
+                                            </label>
+                                            <select class="form-select" name="customer_status" required>
+                                                <option value="Lead" selected>Lead</option>
+                                                <option value="Potential">Potential</option>
+                                                <option value="Prospect">Prospect</option>
+                                                <option value="Pipeline">Pipeline</option>
+                                                <option value="PO">PO</option>
+                                                <option value="Close">Close</option>
+                                            </select>
+                                        </div>
+                                        
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">
                                                 <i class="bi bi-currency-exchange me-1"></i>Contract Value
                                             </label>
                                             <input type="number" class="form-control" name="contract_value" step="0.01">
@@ -288,6 +302,15 @@
                                     <option value="Ink">Ink</option>
                                     <option value="Puri">Puri</option>
                                 </select>
+                                <select id="statusFilter" class="form-select form-select-sm" style="width: 120px;">
+                                    <option value="">สถานะทั้งหมด</option>
+                                    <option value="Lead">Lead</option>
+                                    <option value="Potential">Potential</option>
+                                    <option value="Prospect">Prospect</option>
+                                    <option value="Pipeline">Pipeline</option>
+                                    <option value="PO">PO</option>
+                                    <option value="Close">Close</option>
+                                </select>
                                 <button class="btn btn-outline-info btn-sm" onclick="showAdvancedSearch()" title="ค้นหาขั้นสูง">
                                     <i class="bi bi-search"></i>
                                 </button>
@@ -342,6 +365,17 @@
                                                 <option value="Aui">Aui</option>
                                                 <option value="Ink">Ink</option>
                                                 <option value="Puri">Puri</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-6">
+                                            <select id="statusFilterMobile" class="form-select">
+                                                <option value="">สถานะทั้งหมด</option>
+                                                <option value="Lead">Lead</option>
+                                                <option value="Potential">Potential</option>
+                                                <option value="Prospect">Prospect</option>
+                                                <option value="Pipeline">Pipeline</option>
+                                                <option value="PO">PO</option>
+                                                <option value="Close">Close</option>
                                             </select>
                                         </div>
                                         <div class="col-6">

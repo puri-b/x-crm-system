@@ -68,12 +68,11 @@ app.get('/api/customers/:id', async (req, res) => {
 });
 
 app.post('/api/customers', async (req, res) => {
-    // Removed fields: industry, naics_sic_codes, evaluation_criteria, selection_reason
     const {
         company_name, location, registration_info, business_type,
         contact_names, phone_number, contact_history,
         budget, required_products, pain_points,
-        contract_value, email, lead_source, sales_person
+        contract_value, email, lead_source, sales_person, customer_status
     } = req.body;
 
     try {
@@ -83,13 +82,13 @@ app.post('/api/customers', async (req, res) => {
             (company_name, location, registration_info, business_type,
              contact_names, phone_number, contact_history,
              budget, required_products, pain_points,
-             contract_value, email, lead_source, sales_person)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+             contract_value, email, lead_source, sales_person, customer_status)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
             RETURNING *`,
             [company_name, location, registration_info, business_type,
              contact_names, phone_number, contact_history,
              budget, required_products, pain_points,
-             contract_value, email, lead_source, sales_person]
+             contract_value, email, lead_source, sales_person, customer_status]
         );
         console.log('Customer inserted successfully');
         res.json(result.rows[0]);
@@ -101,12 +100,11 @@ app.post('/api/customers', async (req, res) => {
 
 app.put('/api/customers/:id', async (req, res) => {
     const customerId = req.params.id;
-    // Removed fields: industry, naics_sic_codes, evaluation_criteria, selection_reason
     const {
         company_name, location, registration_info, business_type,
         contact_names, phone_number, contact_history,
         budget, required_products, pain_points,
-        contract_value, email, lead_source, sales_person
+        contract_value, email, lead_source, sales_person, customer_status
     } = req.body;
 
     try {
@@ -116,14 +114,14 @@ app.put('/api/customers/:id', async (req, res) => {
             SET company_name = $1, location = $2, registration_info = $3, business_type = $4, 
                 contact_names = $5, phone_number = $6, contact_history = $7, budget = $8, 
                 required_products = $9, pain_points = $10, contract_value = $11, 
-                email = $12, lead_source = $13, sales_person = $14,
+                email = $12, lead_source = $13, sales_person = $14, customer_status = $15,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = $15
+            WHERE id = $16
             RETURNING *`,
             [company_name, location, registration_info, business_type,
              contact_names, phone_number, contact_history, budget,
              required_products, pain_points, contract_value,
-             email, lead_source, sales_person, customerId]
+             email, lead_source, sales_person, customer_status, customerId]
         );
         
         if (result.rows.length === 0) {
@@ -280,11 +278,12 @@ app.post('/api/customers/:id/contacts', async (req, res) => {
     const customerId = req.params.id;
     const {
         contact_type, contact_status, contact_method, contact_person,
-        contact_details, next_follow_up, notes, created_by
+        contact_details, next_follow_up, notes, created_by, customer_status_update
     } = req.body;
 
     try {
-        const result = await pool.query(
+        // Add contact log
+        const contactResult = await pool.query(
             `INSERT INTO x_crmsystem.contact_logs 
             (customer_id, contact_type, contact_status, contact_method, contact_person,
              contact_details, next_follow_up, notes, created_by, contact_date)
@@ -293,7 +292,18 @@ app.post('/api/customers/:id/contacts', async (req, res) => {
             [customerId, contact_type, contact_status, contact_method, contact_person,
              contact_details, next_follow_up, notes, created_by]
         );
-        res.json(result.rows[0]);
+
+        // Update customer status if provided
+        if (customer_status_update) {
+            await pool.query(
+                `UPDATE x_crmsystem.customers 
+                SET customer_status = $1, updated_at = CURRENT_TIMESTAMP
+                WHERE id = $2`,
+                [customer_status_update, customerId]
+            );
+        }
+
+        res.json(contactResult.rows[0]);
     } catch (err) {
         console.error('Add contact log error:', err);
         res.status(500).json({ error: 'Failed to add contact log: ' + err.message });
@@ -339,7 +349,8 @@ app.get('/api/stats', async (req, res) => {
             offlineLeads,
             highValueCustomers,
             recentCustomers,
-            taskStats
+            taskStats,
+            statusStats
         ] = await Promise.all([
             pool.query('SELECT COUNT(*) FROM x_crmsystem.customers'),
             pool.query("SELECT COUNT(*) FROM x_crmsystem.customers WHERE lead_source = 'Online'"),
@@ -352,6 +363,14 @@ app.get('/api/stats', async (req, res) => {
                     COUNT(*) as count
                 FROM x_crmsystem.tasks 
                 GROUP BY status
+            `),
+            pool.query(`
+                SELECT 
+                    customer_status,
+                    COUNT(*) as count
+                FROM x_crmsystem.customers 
+                WHERE customer_status IS NOT NULL
+                GROUP BY customer_status
             `)
         ]);
 
@@ -360,13 +379,19 @@ app.get('/api/stats', async (req, res) => {
             taskStatsObj[row.status] = parseInt(row.count);
         });
 
+        const statusStatsObj = {};
+        statusStats.rows.forEach(row => {
+            statusStatsObj[row.customer_status] = parseInt(row.count);
+        });
+
         res.json({
             customers: {
                 total: parseInt(totalCustomers.rows[0].count),
                 online_leads: parseInt(onlineLeads.rows[0].count),
                 offline_leads: parseInt(offlineLeads.rows[0].count),
                 high_value: parseInt(highValueCustomers.rows[0].count),
-                recent: parseInt(recentCustomers.rows[0].count)
+                recent: parseInt(recentCustomers.rows[0].count),
+                by_status: statusStatsObj
             },
             tasks: taskStatsObj,
             timestamp: new Date().toISOString()
