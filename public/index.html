@@ -19,14 +19,14 @@
                     <button class="btn btn-light me-1" onclick="showAddForm()">
                         <i class="bi bi-plus-lg me-1"></i><span class="d-none d-sm-inline">เพิ่มลูกค้า</span>
                     </button>
+                    <button class="btn btn-outline-light me-1" onclick="loadCustomers()">
+                        <i class="bi bi-list me-1"></i><span class="d-none d-sm-inline">ดูข้อมูลลูกค้าทั้งหมด</span>
+                    </button>
                     <button class="btn btn-outline-light me-1" onclick="showTasksView()">
                         <i class="bi bi-list-task me-1"></i><span class="d-none d-sm-inline">งาน</span>
                     </button>
                     <button class="btn btn-outline-light me-1" onclick="exportToCSV()">
                         <i class="bi bi-download me-1"></i><span class="d-none d-sm-inline">Export</span>
-                    </button>
-                    <button class="btn btn-outline-light me-1" onclick="loadCustomers()">
-                        <i class="bi bi-arrow-clockwise me-1"></i><span class="d-none d-sm-inline">รีเฟรช</span>
                     </button>
                     <button class="btn btn-outline-light" onclick="showSettings()">
                         <i class="bi bi-gear"></i>
@@ -116,10 +116,10 @@
                                         <!-- ข้อมูลผลิตภัณฑ์และการขาย -->
                                         <div class="col-md-6 mb-3">
                                             <label class="form-label">
-                                                <i class="bi bi-box me-1"></i>ผลิตภัณฑ์/บริการที่สนใจ
+                                                <i class="bi bi-box me-1"></i>บริการที่สนใจ
                                             </label>
                                             <select class="form-select" name="required_products">
-                                                <option value="">เลือกผลิตภัณฑ์/บริการ</option>
+                                                <option value="">เลือกบริการ</option>
                                                 <option value="สแกนเอกสาร">สแกนเอกสาร</option>
                                                 <option value="บันทึกข้อมูล">บันทึกข้อมูล</option>
                                                 <option value="BPO">BPO</option>
@@ -272,7 +272,7 @@
                                     <option value="Offline">Offline</option>
                                 </select>
                                 <select id="productFilter" class="form-select form-select-sm" style="width: 130px;">
-                                    <option value="">ผลิตภัณฑ์ทั้งหมด</option>
+                                    <option value="">บริการทั้งหมด</option>
                                     <option value="สแกนเอกสาร">สแกนเอกสาร</option>
                                     <option value="บันทึกข้อมูล">บันทึกข้อมูล</option>
                                     <option value="BPO">BPO</option>
@@ -325,7 +325,7 @@
                                         </div>
                                         <div class="col-6">
                                             <select id="productFilterMobile" class="form-select">
-                                                <option value="">ผลิตภัณฑ์ทั้งหมด</option>
+                                                <option value="">บริการทั้งหมด</option>
                                                 <option value="สแกนเอกสาร">สแกนเอกสาร</option>
                                                 <option value="บันทึกข้อมูล">บันทึกข้อมูล</option>
                                                 <option value="BPO">BPO</option>
