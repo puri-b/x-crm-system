@@ -1173,7 +1173,7 @@ function generateTaskCards(tasks, emptyMessage) {
     }
 
     return tasks.map(task => `
-        <div class="card mb-2">
+        <div class="card mb-2 task-card" onclick="viewTaskDetail(${task.id})" style="cursor: pointer;">
             <div class="card-body p-2">
                 <div class="d-flex justify-content-between align-items-start">
                     <h6 class="card-title mb-1">${task.title}</h6>
@@ -1181,12 +1181,15 @@ function generateTaskCards(tasks, emptyMessage) {
                 </div>
                 <p class="card-text mb-1"><small>${task.company_name}</small></p>
                 <p class="card-text mb-1"><small>กำหนด: ${new Date(task.due_date).toLocaleDateString('th-TH')}</small></p>
-                <div class="d-flex gap-1">
-                    <button class="btn btn-sm btn-outline-success" onclick="updateTaskStatus(${task.id}, 'Completed')">
+                <div class="d-flex gap-1" onclick="event.stopPropagation();">
+                    <button class="btn btn-sm btn-outline-success" onclick="updateTaskStatus(${task.id}, 'Completed')" title="ทำเสร็จ">
                         <i class="bi bi-check"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-primary" onclick="updateTaskStatus(${task.id}, 'In Progress')">
+                    <button class="btn btn-sm btn-outline-primary" onclick="updateTaskStatus(${task.id}, 'In Progress')" title="กำลังดำเนินการ">
                         <i class="bi bi-play"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="updateTaskStatus(${task.id}, 'Cancelled')" title="ยกเลิกงาน">
+                        <i class="bi bi-x"></i>
                     </button>
                 </div>
             </div>
@@ -1222,7 +1225,7 @@ function generateTasksTable(tasks) {
         const isOverdue = task.due_date && new Date(task.due_date) < new Date() && task.status !== 'Completed';
         
         tableHTML += `
-            <tr class="${isOverdue ? 'table-danger' : ''}">
+            <tr class="${isOverdue ? 'table-danger' : ''} task-row" onclick="viewTaskDetail(${task.id})" style="cursor: pointer;">
                 <td>
                     <strong>${task.title}</strong>
                     ${task.description ? `<br><small class="text-muted">${task.description}</small>` : ''}
@@ -1233,15 +1236,18 @@ function generateTasksTable(tasks) {
                 <td>${getSalesPersonBadge(task.assigned_to)}</td>
                 <td>${dueDate}</td>
                 <td><span class="badge ${getStatusBadgeClass(task.status)}">${getStatusText(task.status)}</span></td>
-                <td>
-                    ${task.status !== 'Completed' ? `
+                <td onclick="event.stopPropagation();">
+                    ${task.status !== 'Completed' && task.status !== 'Cancelled' ? `
                         <button class="btn btn-sm btn-outline-success me-1" onclick="updateTaskStatus(${task.id}, 'Completed')" title="ทำเสร็จ">
                             <i class="bi bi-check"></i>
                         </button>
-                        <button class="btn btn-sm btn-outline-primary" onclick="updateTaskStatus(${task.id}, 'In Progress')" title="กำลังดำเนินการ">
+                        <button class="btn btn-sm btn-outline-primary me-1" onclick="updateTaskStatus(${task.id}, 'In Progress')" title="กำลังดำเนินการ">
                             <i class="bi bi-play"></i>
                         </button>
-                    ` : '<span class="text-success">เสร็จแล้ว</span>'}
+                        <button class="btn btn-sm btn-outline-danger" onclick="updateTaskStatus(${task.id}, 'Cancelled')" title="ยกเลิกงาน">
+                            <i class="bi bi-x"></i>
+                        </button>
+                    ` : `<span class="text-success">${getStatusText(task.status)}</span>`}
                 </td>
             </tr>
         `;
@@ -1249,6 +1255,124 @@ function generateTasksTable(tasks) {
 
     tableHTML += '</tbody></table></div>';
     return tableHTML;
+}
+
+// ฟังก์ชันดูรายละเอียดงาน
+async function viewTaskDetail(taskId) {
+    try {
+        const response = await fetch(`/api/tasks/${taskId}`);
+        const task = await response.json();
+
+        if (response.ok) {
+            showTaskDetailModal(task);
+        } else {
+            showNotification('ไม่สามารถโหลดรายละเอียดงานได้', 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showNotification('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'danger');
+    }
+}
+
+// แสดง Modal รายละเอียดงาน
+function showTaskDetailModal(task) {
+    const dueDate = task.due_date ? new Date(task.due_date).toLocaleDateString('th-TH') : '-';
+    const reminderDate = task.reminder_date ? new Date(task.reminder_date).toLocaleString('th-TH') : '-';
+    const createdDate = new Date(task.created_at).toLocaleString('th-TH');
+    const completedDate = task.completed_at ? new Date(task.completed_at).toLocaleString('th-TH') : '-';
+
+    const taskDetailHTML = `
+        <div class="modal fade" id="taskDetailModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">รายละเอียดงาน</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <h6 class="text-primary">${task.title}</h6>
+                                <span class="badge ${getPriorityBadgeClass(task.priority)} me-2">${task.priority}</span>
+                                <span class="badge ${getStatusBadgeClass(task.status)}">${getStatusText(task.status)}</span>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <strong>ลูกค้า:</strong><br>
+                                ${task.company_name || '-'}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <strong>ประเภทงาน:</strong><br>
+                                ${task.task_type}
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <strong>ผู้รับผิดชอบ:</strong><br>
+                                ${getSalesPersonBadge(task.assigned_to)}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <strong>ผู้สร้างงาน:</strong><br>
+                                ${task.created_by || '-'}
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <strong>กำหนดเสร็จ:</strong><br>
+                                ${dueDate}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <strong>แจ้งเตือน:</strong><br>
+                                ${reminderDate}
+                            </div>
+                            
+                            <div class="col-md-12 mb-3">
+                                <strong>รายละเอียด:</strong><br>
+                                ${task.description || 'ไม่มีรายละเอียด'}
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <strong>วันที่สร้าง:</strong><br>
+                                ${createdDate}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <strong>วันที่เสร็จ:</strong><br>
+                                ${completedDate}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer flex-wrap">
+                        ${task.status !== 'Completed' && task.status !== 'Cancelled' ? `
+                            <button type="button" class="btn btn-success me-2" onclick="updateTaskStatusAndClose(${task.id}, 'Completed')">
+                                <i class="bi bi-check me-1"></i>ทำเสร็จ
+                            </button>
+                            <button type="button" class="btn btn-primary me-2" onclick="updateTaskStatusAndClose(${task.id}, 'In Progress')">
+                                <i class="bi bi-play me-1"></i>กำลังดำเนินการ
+                            </button>
+                            <button type="button" class="btn btn-danger me-auto" onclick="updateTaskStatusAndClose(${task.id}, 'Cancelled')">
+                                <i class="bi bi-x me-1"></i>ยกเลิกงาน
+                            </button>
+                        ` : ''}
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ปิด</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', taskDetailHTML);
+    const modal = new bootstrap.Modal(document.getElementById('taskDetailModal'));
+    modal.show();
+
+    document.getElementById('taskDetailModal').addEventListener('hidden.bs.modal', function () {
+        this.remove();
+    });
+}
+
+// อัพเดตสถานะและปิด modal
+async function updateTaskStatusAndClose(taskId, status) {
+    const success = await updateTaskStatus(taskId, status);
+    if (success) {
+        document.getElementById('taskDetailModal').querySelector('[data-bs-dismiss="modal"]').click();
+    }
 }
 
 async function updateTaskStatus(taskId, status) {
@@ -1267,12 +1391,15 @@ async function updateTaskStatus(taskId, status) {
             loadTasksDashboard();
             loadAllTasks();
             showNotification('อัพเดตสถานะงานเรียบร้อยแล้ว', 'success');
+            return true;
         } else {
             showNotification('เกิดข้อผิดพลาดในการอัพเดตสถานะ', 'danger');
+            return false;
         }
     } catch (error) {
         console.error('Error:', error);
         showNotification('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'danger');
+        return false;
     }
 }
 
@@ -1632,6 +1759,9 @@ async function showContactModal(customerId) {
         const modal = new bootstrap.Modal(document.getElementById('contactModal'));
         modal.show();
 
+        // เพิ่ม data attribute เพื่อให้ functions อื่นเข้าถึงได้
+        document.getElementById('contactModal').setAttribute('data-customer-id', customerId);
+
         document.getElementById('contactForm').addEventListener('submit', function(e) {
             e.preventDefault();
             addContactLog(customerId);
@@ -1673,7 +1803,15 @@ function generateContactHistory(contacts) {
                 <div class="card-body p-3">
                     <div class="d-flex justify-content-between align-items-start mb-2">
                         <h6 class="mb-1">${contact.contact_type || '-'}</h6>
-                        <small class="text-muted">${displayDate}</small>
+                        <div class="d-flex gap-1 align-items-center">
+                            <small class="text-muted me-2">${displayDate}</small>
+                            <button class="btn btn-sm btn-outline-primary" onclick="editContact(${contact.id})" title="แก้ไข">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteContact(${contact.id})" title="ลบ">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
                     </div>
                     <div class="row">
                         <div class="col-sm-6">
@@ -1692,6 +1830,203 @@ function generateContactHistory(contacts) {
             </div>
         `;
     }).join('');
+}
+
+// ฟังก์ชันแก้ไขการติดต่อ
+async function editContact(contactId) {
+    try {
+        const response = await fetch(`/api/contacts/${contactId}`);
+        const contact = await response.json();
+
+        if (response.ok) {
+            showEditContactModal(contact);
+        } else {
+            showNotification('ไม่สามารถโหลดข้อมูลการติดต่อได้', 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showNotification('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'danger');
+    }
+}
+
+// แสดง Modal แก้ไขการติดต่อ
+function showEditContactModal(contact) {
+    // แปลงเวลาสำหรับ datetime-local input
+    const contactDate = new Date(contact.contact_date);
+    const timezoneOffset = contactDate.getTimezoneOffset() * 60000;
+    const localDateTime = new Date(contactDate.getTime() + timezoneOffset);
+    const localDateTimeString = localDateTime.toISOString().slice(0, 16);
+
+    const editContactHTML = `
+        <div class="modal fade" id="editContactModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">แก้ไขการติดต่อ</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="editContactForm">
+                            <div class="mb-3">
+                                <label class="form-label">วันที่ติดต่อ *</label>
+                                <input type="datetime-local" class="form-control" name="contact_date" value="${localDateTimeString}" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">ประเภทการติดต่อ *</label>
+                                <select class="form-select" name="contact_type" required>
+                                    <option value="">เลือกประเภท</option>
+                                    <option value="เริ่มต้น" ${contact.contact_type === 'เริ่มต้น' ? 'selected' : ''}>เริ่มต้น</option>
+                                    <option value="ติดตาม" ${contact.contact_type === 'ติดตาม' ? 'selected' : ''}>ติดตาม</option>
+                                    <option value="นำเสนอ" ${contact.contact_type === 'นำเสนอ' ? 'selected' : ''}>นำเสนอ</option>
+                                    <option value="เจรจา" ${contact.contact_type === 'เจรจา' ? 'selected' : ''}>เจรจา</option>
+                                    <option value="ปิดการขาย" ${contact.contact_type === 'ปิดการขาย' ? 'selected' : ''}>ปิดการขาย</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">สถานะ *</label>
+                                <select class="form-select" name="contact_status" required>
+                                    <option value="">เลือกสถานะ</option>
+                                    <option value="สนใจ" ${contact.contact_status === 'สนใจ' ? 'selected' : ''}>สนใจ</option>
+                                    <option value="รอพิจารณา" ${contact.contact_status === 'รอพิจารณา' ? 'selected' : ''}>รอพิจารณา</option>
+                                    <option value="นัดหมาย" ${contact.contact_status === 'นัดหมาย' ? 'selected' : ''}>นัดหมาย</option>
+                                    <option value="เจรจา" ${contact.contact_status === 'เจรจา' ? 'selected' : ''}>เจรจา</option>
+                                    <option value="สำเร็จ" ${contact.contact_status === 'สำเร็จ' ? 'selected' : ''}>สำเร็จ</option>
+                                    <option value="ไม่สำเร็จ" ${contact.contact_status === 'ไม่สำเร็จ' ? 'selected' : ''}>ไม่สำเร็จ</option>
+                                    <option value="รอติดตาม" ${contact.contact_status === 'รอติดตาม' ? 'selected' : ''}>รอติดตาม</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">ช่องทางติดต่อ</label>
+                                <select class="form-select" name="contact_method">
+                                    <option value="">เลือกช่องทาง</option>
+                                    <option value="โทรศัพท์" ${contact.contact_method === 'โทรศัพท์' ? 'selected' : ''}>โทรศัพท์</option>
+                                    <option value="อีเมล" ${contact.contact_method === 'อีเมล' ? 'selected' : ''}>อีเมล</option>
+                                    <option value="LINE" ${contact.contact_method === 'LINE' ? 'selected' : ''}>LINE</option>
+                                    <option value="พบหน้า" ${contact.contact_method === 'พบหน้า' ? 'selected' : ''}>พบหน้า</option>
+                                    <option value="วิดีโอคอล" ${contact.contact_method === 'วิดีโอคอล' ? 'selected' : ''}>วิดีโอคอล</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">ผู้ติดต่อ</label>
+                                <input type="text" class="form-control" name="contact_person" value="${contact.contact_person || ''}" placeholder="ชื่อผู้ติดต่อ">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">รายละเอียดการติดต่อ</label>
+                                <textarea class="form-control" name="contact_details" rows="3" placeholder="บันทึกรายละเอียดการติดต่อ">${contact.contact_details || ''}</textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">วันติดตามครั้งต่อไป</label>
+                                <input type="date" class="form-control" name="next_follow_up" value="${contact.next_follow_up ? contact.next_follow_up.split('T')[0] : ''}">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">หมายเหตุ</label>
+                                <textarea class="form-control" name="notes" rows="2" placeholder="หมายเหตุเพิ่มเติม">${contact.notes || ''}</textarea>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+                        <button type="button" class="btn btn-primary" onclick="updateContact(${contact.id})">บันทึกการแก้ไข</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', editContactHTML);
+    const modal = new bootstrap.Modal(document.getElementById('editContactModal'));
+    modal.show();
+
+    document.getElementById('editContactModal').addEventListener('hidden.bs.modal', function () {
+        this.remove();
+    });
+}
+
+// อัพเดตการติดต่อ
+async function updateContact(contactId) {
+    const form = document.getElementById('editContactForm');
+    const formData = new FormData(form);
+
+    // จัดการเวลาเหมือนกับการเพิ่มใหม่
+    const contactDateInput = formData.get('contact_date');
+    let contactDateTime = null;
+    if (contactDateInput) {
+        const localDate = new Date(contactDateInput);
+        const timezoneOffset = localDate.getTimezoneOffset() * 60000;
+        contactDateTime = new Date(localDate.getTime() - timezoneOffset).toISOString();
+    }
+
+    const contactData = {
+        contact_type: formData.get('contact_type'),
+        contact_status: formData.get('contact_status'),
+        contact_method: formData.get('contact_method'),
+        contact_person: formData.get('contact_person'),
+        contact_details: formData.get('contact_details'),
+        next_follow_up: formData.get('next_follow_up') || null,
+        notes: formData.get('notes'),
+        contact_date: contactDateTime
+    };
+
+    try {
+        const response = await fetch(`/api/contacts/${contactId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(contactData)
+        });
+
+        if (response.ok) {
+            showNotification('แก้ไขการติดต่อเรียบร้อยแล้ว', 'success');
+            document.getElementById('editContactModal').querySelector('[data-bs-dismiss="modal"]').click();
+            // รีเฟรช contact modal
+            const contactModal = document.getElementById('contactModal');
+            if (contactModal) {
+                const customerId = contactModal.getAttribute('data-customer-id');
+                if (customerId) {
+                    contactModal.querySelector('[data-bs-dismiss="modal"]').click();
+                    setTimeout(() => showContactModal(customerId), 300);
+                }
+            }
+        } else {
+            const errorData = await response.json();
+            showNotification('เกิดข้อผิดพลาดในการแก้ไข: ' + (errorData.error || 'ไม่ทราบสาเหตุ'), 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showNotification('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'danger');
+    }
+}
+
+// ลบการติดต่อ
+async function deleteContact(contactId) {
+    if (!confirm('คุณต้องการลบการติดต่อนี้หรือไม่?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/contacts/${contactId}`, {
+            method: 'DELETE'
+        });
+
+        if (response.ok) {
+            showNotification('ลบการติดต่อเรียบร้อยแล้ว', 'success');
+            // รีเฟรช contact modal
+            const contactModal = document.getElementById('contactModal');
+            if (contactModal) {
+                const customerId = contactModal.getAttribute('data-customer-id');
+                if (customerId) {
+                    contactModal.querySelector('[data-bs-dismiss="modal"]').click();
+                    setTimeout(() => showContactModal(customerId), 300);
+                }
+            }
+        } else {
+            showNotification('เกิดข้อผิดพลาดในการลบ', 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showNotification('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'danger');
+    }
 }
 
 // แก้ไขฟังก์ชันบันทึกการติดต่อ

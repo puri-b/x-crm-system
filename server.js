@@ -211,6 +211,28 @@ app.get('/api/tasks/dashboard', async (req, res) => {
     }
 });
 
+// Get single task
+app.get('/api/tasks/:id', async (req, res) => {
+    const taskId = req.params.id;
+    try {
+        const result = await pool.query(`
+            SELECT t.*, c.company_name 
+            FROM x_crmsystem.tasks t 
+            LEFT JOIN x_crmsystem.customers c ON t.customer_id = c.id 
+            WHERE t.id = $1
+        `, [taskId]);
+        
+        if (result.rows.length === 0) {
+            res.status(404).json({ error: 'Task not found' });
+        } else {
+            res.json(result.rows[0]);
+        }
+    } catch (err) {
+        console.error('Get task error:', err);
+        res.status(500).json({ error: 'Failed to get task: ' + err.message });
+    }
+});
+
 app.post('/api/customers/:id/tasks', async (req, res) => {
     const customerId = req.params.id;
     const {
@@ -271,6 +293,76 @@ app.get('/api/customers/:id/contacts', async (req, res) => {
     } catch (err) {
         console.error('Contact logs error:', err);
         res.status(500).json({ error: 'Failed to get contact logs: ' + err.message });
+    }
+});
+
+// Get single contact
+app.get('/api/contacts/:id', async (req, res) => {
+    const contactId = req.params.id;
+    try {
+        const result = await pool.query(
+            'SELECT * FROM x_crmsystem.contact_logs WHERE id = $1', 
+            [contactId]
+        );
+        if (result.rows.length === 0) {
+            res.status(404).json({ error: 'Contact not found' });
+        } else {
+            res.json(result.rows[0]);
+        }
+    } catch (err) {
+        console.error('Contact error:', err);
+        res.status(500).json({ error: 'Failed to get contact: ' + err.message });
+    }
+});
+
+// Update contact
+app.put('/api/contacts/:id', async (req, res) => {
+    const contactId = req.params.id;
+    const {
+        contact_type, contact_status, contact_method, contact_person,
+        contact_details, next_follow_up, notes, contact_date
+    } = req.body;
+
+    try {
+        const result = await pool.query(
+            `UPDATE x_crmsystem.contact_logs 
+            SET contact_type = $1, contact_status = $2, contact_method = $3, 
+                contact_person = $4, contact_details = $5, next_follow_up = $6, 
+                notes = $7, contact_date = $8, updated_at = CURRENT_TIMESTAMP
+            WHERE id = $9
+            RETURNING *`,
+            [contact_type, contact_status, contact_method, contact_person,
+             contact_details, next_follow_up, notes, contact_date, contactId]
+        );
+        
+        if (result.rows.length === 0) {
+            res.status(404).json({ error: 'Contact not found' });
+        } else {
+            res.json(result.rows[0]);
+        }
+    } catch (err) {
+        console.error('Update contact error:', err);
+        res.status(500).json({ error: 'Failed to update contact: ' + err.message });
+    }
+});
+
+// Delete contact
+app.delete('/api/contacts/:id', async (req, res) => {
+    const contactId = req.params.id;
+    try {
+        const result = await pool.query(
+            'DELETE FROM x_crmsystem.contact_logs WHERE id = $1 RETURNING *', 
+            [contactId]
+        );
+        
+        if (result.rows.length === 0) {
+            res.status(404).json({ error: 'Contact not found' });
+        } else {
+            res.json({ message: 'Contact deleted successfully' });
+        }
+    } catch (err) {
+        console.error('Delete contact error:', err);
+        res.status(500).json({ error: 'Failed to delete contact: ' + err.message });
     }
 });
 
