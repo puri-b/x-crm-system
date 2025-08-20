@@ -1653,9 +1653,13 @@ function generateContactHistory(contacts) {
     }
 
     return contacts.map(contact => {
-        // แปลงเวลาจาก UTC เป็นเวลาท้องถิ่นสำหรับการแสดงผล
+        // แปลงเวลาจาก UTC กลับเป็นเวลาท้องถิ่นที่ user เลือกไว้
         const contactDate = new Date(contact.contact_date);
-        const displayDate = contactDate.toLocaleString('th-TH', {
+        // เนื่องจากเราเก็บเวลา UTC ที่แทนค่าเวลาท้องถิ่น เราต้องแปลงกลับ
+        const timezoneOffset = contactDate.getTimezoneOffset() * 60000;
+        const localDateTime = new Date(contactDate.getTime() + timezoneOffset);
+        
+        const displayDate = localDateTime.toLocaleString('th-TH', {
             year: 'numeric',
             month: '2-digit',
             day: '2-digit',
@@ -1695,8 +1699,23 @@ async function addContactLog(customerId) {
     const form = document.getElementById('contactForm');
     const formData = new FormData(form);
 
-    // รับค่าเวลาที่ผู้ใช้เลือก (เป็นเวลาท้องถิ่น)
+    // รับค่าเวลาที่ผู้ใช้เลือก และจัดการ timezone อย่างถูกต้อง
     const contactDateInput = formData.get('contact_date');
+    
+    // สร้าง Date object จากค่าที่ user เลือก (ในรูปแบบ YYYY-MM-DDTHH:MM)
+    // และเก็บเป็น timestamp ที่แทนเวลาท้องถิ่น
+    let contactDateTime = null;
+    if (contactDateInput) {
+        // แปลง datetime-local เป็น timestamp แบบ local time
+        const localDate = new Date(contactDateInput);
+        // ปรับ timezone offset เพื่อให้ได้เวลา UTC ที่แทนค่าเวลาท้องถิ่นที่ user เลือก
+        const timezoneOffset = localDate.getTimezoneOffset() * 60000;
+        contactDateTime = new Date(localDate.getTime() - timezoneOffset).toISOString();
+    } else {
+        const now = new Date();
+        const timezoneOffset = now.getTimezoneOffset() * 60000;
+        contactDateTime = new Date(now.getTime() - timezoneOffset).toISOString();
+    }
     
     const contactData = {
         contact_type: formData.get('contact_type'),
@@ -1708,7 +1727,7 @@ async function addContactLog(customerId) {
         notes: formData.get('notes'),
         created_by: formData.get('created_by'),
         customer_status_update: formData.get('customer_status_update') || null,
-        contact_date: contactDateInput // ส่งเวลาที่ผู้ใช้เลือกโดยตรง
+        contact_date: contactDateTime
     };
 
     // Show loading state

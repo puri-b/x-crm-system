@@ -283,18 +283,21 @@ app.post('/api/customers/:id/contacts', async (req, res) => {
     } = req.body;
 
     try {
-        // รับเวลาที่ส่งมาจาก frontend โดยตรง (ไม่แปลงเป็น UTC)
-        // Frontend ส่งมาในรูปแบบ datetime-local (YYYY-MM-DDTHH:MM)
+        // รับค่า contact_date ที่ส่งมาจาก frontend 
+        // ค่านี้เป็น UTC timestamp ที่แทนค่าเวลาท้องถิ่นที่ user เลือก
         let contactDateTime;
         if (contact_date) {
-            // สร้าง Date object จากค่าที่ส่งมา แล้วแปลงเป็น ISO string สำหรับ database
-            contactDateTime = new Date(contact_date).toISOString();
+            // ใช้ค่าที่ส่งมาโดยตรง (ไม่แปลง timezone เพิ่ม)
+            contactDateTime = contact_date;
         } else {
-            contactDateTime = new Date().toISOString();
+            // ถ้าไม่มีค่าส่งมา ใช้เวลาปัจจุบัน
+            const now = new Date();
+            const timezoneOffset = now.getTimezoneOffset() * 60000;
+            contactDateTime = new Date(now.getTime() - timezoneOffset).toISOString();
         }
 
         console.log('Original contact_date from frontend:', contact_date);
-        console.log('Processed contactDateTime for database:', contactDateTime);
+        console.log('Final contactDateTime for database:', contactDateTime);
 
         // Add contact log
         const contactResult = await pool.query(
