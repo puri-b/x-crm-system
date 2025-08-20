@@ -470,6 +470,7 @@ function getCustomerStatusBadge(status) {
     
     return `<span class="badge ${colors[status] || 'bg-secondary'}">${status}</span>`;
 }
+
 function updatePagination() {
     const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
     const paginationNav = document.getElementById('paginationNav');
@@ -1508,7 +1509,7 @@ function clearAllAdvancedSearch() {
     updateSearchStatus();
 }
 
-// Contact modal functions
+// Contact modal functions - แก้ไขปัญหาการจัดการเวลา
 async function showContactModal(customerId) {
     try {
         const [customerRes, contactsRes] = await Promise.all([
@@ -1518,6 +1519,10 @@ async function showContactModal(customerId) {
 
         const customer = await customerRes.json();
         const contacts = await contactsRes.json();
+
+        // สร้างค่าเริ่มต้นสำหรับเวลาปัจจุบัน (เวลาท้องถิ่น)
+        const now = new Date();
+        const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 
         const contactModalHTML = `
             <div class="modal fade" id="contactModal" tabindex="-1">
@@ -1533,11 +1538,12 @@ async function showContactModal(customerId) {
                                     <h6>เพิ่มการติดต่อใหม่</h6>
                                     <form id="contactForm">
                                         <div class="mb-3">
-                                            <label class="form-label">วันที่ติดต่อ</label>
-                                            <input type="datetime-local" class="form-control" name="contact_date" value="${new Date().toISOString().slice(0, 16)}" required>
+                                            <label class="form-label">วันที่ติดต่อ *</label>
+                                            <input type="datetime-local" class="form-control" name="contact_date" value="${localDateTime}" required>
+                                            <div class="form-text">เลือกวันและเวลาที่ติดต่อ</div>
                                         </div>
                                         <div class="mb-3">
-                                            <label class="form-label">ประเภทการติดต่อ</label>
+                                            <label class="form-label">ประเภทการติดต่อ *</label>
                                             <select class="form-select" name="contact_type" required>
                                                 <option value="">เลือกประเภท</option>
                                                 <option value="เริ่มต้น">เริ่มต้น</option>
@@ -1548,7 +1554,7 @@ async function showContactModal(customerId) {
                                             </select>
                                         </div>
                                         <div class="mb-3">
-                                            <label class="form-label">สถานะ</label>
+                                            <label class="form-label">สถานะ *</label>
                                             <select class="form-select" name="contact_status" required>
                                                 <option value="">เลือกสถานะ</option>
                                                 <option value="สนใจ">สนใจ</option>
@@ -1646,35 +1652,52 @@ function generateContactHistory(contacts) {
         return '<div class="text-center text-muted py-3">ยังไม่มีประวัติการติดต่อ</div>';
     }
 
-    return contacts.map(contact => `
-        <div class="card mb-2">
-            <div class="card-body p-3">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                    <h6 class="mb-1">${contact.contact_type || '-'}</h6>
-                    <small class="text-muted">${new Date(contact.contact_date).toLocaleString('th-TH')}</small>
-                </div>
-                <div class="row">
-                    <div class="col-sm-6">
-                        <small><strong>สถานะ:</strong> <span class="badge bg-secondary">${contact.contact_status || '-'}</span></small>
+    return contacts.map(contact => {
+        // แปลงเวลาจาก UTC เป็นเวลาท้องถิ่นสำหรับการแสดงผล
+        const contactDate = new Date(contact.contact_date);
+        const displayDate = contactDate.toLocaleString('th-TH', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        });
+
+        return `
+            <div class="card mb-2">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h6 class="mb-1">${contact.contact_type || '-'}</h6>
+                        <small class="text-muted">${displayDate}</small>
                     </div>
-                    <div class="col-sm-6">
-                        <small><strong>ช่องทาง:</strong> ${contact.contact_method || '-'}</small>
+                    <div class="row">
+                        <div class="col-sm-6">
+                            <small><strong>สถานะ:</strong> <span class="badge bg-secondary">${contact.contact_status || '-'}</span></small>
+                        </div>
+                        <div class="col-sm-6">
+                            <small><strong>ช่องทาง:</strong> ${contact.contact_method || '-'}</small>
+                        </div>
                     </div>
+                    ${contact.contact_person ? `<div class="mt-1"><small><strong>ผู้ติดต่อ:</strong> ${contact.contact_person}</small></div>` : ''}
+                    ${contact.contact_details ? `<div class="mt-1"><small><strong>รายละเอียด:</strong> ${contact.contact_details}</small></div>` : ''}
+                    ${contact.next_follow_up ? `<div class="mt-1"><small><strong>ติดตามครั้งต่อไป:</strong> ${new Date(contact.next_follow_up).toLocaleDateString('th-TH')}</small></div>` : ''}
+                    ${contact.notes ? `<div class="mt-1"><small><strong>หมายเหตุ:</strong> ${contact.notes}</small></div>` : ''}
+                    <div class="mt-1"><small class="text-muted">บันทึกโดย: ${contact.created_by || 'ไม่ระบุ'}</small></div>
                 </div>
-                ${contact.contact_person ? `<div class="mt-1"><small><strong>ผู้ติดต่อ:</strong> ${contact.contact_person}</small></div>` : ''}
-                ${contact.contact_details ? `<div class="mt-1"><small><strong>รายละเอียด:</strong> ${contact.contact_details}</small></div>` : ''}
-                ${contact.next_follow_up ? `<div class="mt-1"><small><strong>ติดตามครั้งต่อไป:</strong> ${new Date(contact.next_follow_up).toLocaleDateString('th-TH')}</small></div>` : ''}
-                ${contact.notes ? `<div class="mt-1"><small><strong>หมายเหตุ:</strong> ${contact.notes}</small></div>` : ''}
-                <div class="mt-1"><small class="text-muted">บันทึกโดย: ${contact.created_by || 'ไม่ระบุ'}</small></div>
             </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
+// แก้ไขฟังก์ชันบันทึกการติดต่อ
 async function addContactLog(customerId) {
     const form = document.getElementById('contactForm');
     const formData = new FormData(form);
 
+    // รับค่าเวลาที่ผู้ใช้เลือก (เป็นเวลาท้องถิ่น)
+    const contactDateInput = formData.get('contact_date');
+    
     const contactData = {
         contact_type: formData.get('contact_type'),
         contact_status: formData.get('contact_status'),
@@ -1684,8 +1707,15 @@ async function addContactLog(customerId) {
         next_follow_up: formData.get('next_follow_up') || null,
         notes: formData.get('notes'),
         created_by: formData.get('created_by'),
-        customer_status_update: formData.get('customer_status_update') || null
+        customer_status_update: formData.get('customer_status_update') || null,
+        contact_date: contactDateInput // ส่งเวลาที่ผู้ใช้เลือกโดยตรง
     };
+
+    // Show loading state
+    const submitButton = form.querySelector('button[type="submit"]');
+    const originalText = submitButton.innerHTML;
+    submitButton.disabled = true;
+    submitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>กำลังบันทึก...';
 
     try {
         const response = await fetch(`/api/customers/${customerId}/contacts`, {
@@ -1702,11 +1732,15 @@ async function addContactLog(customerId) {
             // Refresh customer list to show updated status
             loadCustomers();
         } else {
-            showNotification('เกิดข้อผิดพลาดในการบันทึกข้อมูล', 'danger');
+            const errorData = await response.json();
+            showNotification('เกิดข้อผิดพลาดในการบันทึกข้อมูล: ' + (errorData.error || 'ไม่ทราบสาเหตุ'), 'danger');
         }
     } catch (error) {
         console.error('Error:', error);
         showNotification('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'danger');
+    } finally {
+        submitButton.disabled = false;
+        submitButton.innerHTML = originalText;
     }
 }
 
@@ -1724,8 +1758,7 @@ async function showTaskModal(customerId, companyName) {
                         <form id="taskForm">
                             <div class="row">
                                 <div class="col-md-6 mb-3">
-                                    <label class="form-label">ชื่องาน *
-                                    </label>
+                                    <label class="form-label">ชื่องาน *</label>
                                     <input type="text" class="form-control" name="title" required>
                                 </div>
                                 <div class="col-md-6 mb-3">
@@ -1785,59 +1818,63 @@ async function showTaskModal(customerId, companyName) {
             </div>
         </div>
     `;
+
     document.body.insertAdjacentHTML('beforeend', taskModalHTML);
-const modal = new bootstrap.Modal(document.getElementById('taskModal'));
-modal.show();
+    const modal = new bootstrap.Modal(document.getElementById('taskModal'));
+    modal.show();
 
-document.getElementById('taskForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    addTask(customerId);
-});
-
-document.getElementById('taskModal').addEventListener('hidden.bs.modal', function () {
-    this.remove();
-});
-}
-async function addTask(customerId) {
-const form = document.getElementById('taskForm');
-const formData = new FormData(form);
-const taskData = {
-    title: formData.get('title'),
-    description: formData.get('description'),
-    task_type: formData.get('task_type'),
-    priority: formData.get('priority'),
-    assigned_to: formData.get('assigned_to'),
-    due_date: formData.get('due_date') || null,
-    reminder_date: formData.get('reminder_date') || null,
-    created_by: formData.get('created_by')
-};
-
-try {
-    const response = await fetch(`/api/customers/${customerId}/tasks`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(taskData)
+    document.getElementById('taskForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        addTask(customerId);
     });
 
-    if (response.ok) {
-        showNotification('สร้างงานเรียบร้อยแล้ว', 'success');
-        document.getElementById('taskModal').querySelector('[data-bs-dismiss="modal"]').click();
-    } else {
-        showNotification('เกิดข้อผิดพลาดในการสร้างงาน', 'danger');
+    document.getElementById('taskModal').addEventListener('hidden.bs.modal', function () {
+        this.remove();
+    });
+}
+
+async function addTask(customerId) {
+    const form = document.getElementById('taskForm');
+    const formData = new FormData(form);
+    
+    const taskData = {
+        title: formData.get('title'),
+        description: formData.get('description'),
+        task_type: formData.get('task_type'),
+        priority: formData.get('priority'),
+        assigned_to: formData.get('assigned_to'),
+        due_date: formData.get('due_date') || null,
+        reminder_date: formData.get('reminder_date') || null,
+        created_by: formData.get('created_by')
+    };
+
+    try {
+        const response = await fetch(`/api/customers/${customerId}/tasks`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(taskData)
+        });
+
+        if (response.ok) {
+            showNotification('สร้างงานเรียบร้อยแล้ว', 'success');
+            document.getElementById('taskModal').querySelector('[data-bs-dismiss="modal"]').click();
+        } else {
+            showNotification('เกิดข้อผิดพลาดในการสร้างงาน', 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showNotification('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'danger');
     }
-} catch (error) {
-    console.error('Error:', error);
-    showNotification('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'danger');
 }
-}
+
 // Handle window resize for responsive table
 window.addEventListener('resize', debounce(function() {
-if (filteredCustomers.length > 0) {
-const startIndex = (currentPage - 1) * itemsPerPage;
-const endIndex = startIndex + itemsPerPage;
-const paginatedData = filteredCustomers.slice(startIndex, endIndex);
-displayCustomers(paginatedData);
-}
+    if (filteredCustomers.length > 0) {
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        const paginatedData = filteredCustomers.slice(startIndex, endIndex);
+        displayCustomers(paginatedData);
+    }
 }, 250));

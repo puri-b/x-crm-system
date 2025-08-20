@@ -274,24 +274,40 @@ app.get('/api/customers/:id/contacts', async (req, res) => {
     }
 });
 
+// แก้ไขการจัดการเวลาในการบันทึกการติดต่อ
 app.post('/api/customers/:id/contacts', async (req, res) => {
     const customerId = req.params.id;
     const {
         contact_type, contact_status, contact_method, contact_person,
-        contact_details, next_follow_up, notes, created_by, customer_status_update
+        contact_details, next_follow_up, notes, created_by, customer_status_update, contact_date
     } = req.body;
 
     try {
+        // รับเวลาที่ส่งมาจาก frontend โดยตรง (ไม่แปลงเป็น UTC)
+        // Frontend ส่งมาในรูปแบบ datetime-local (YYYY-MM-DDTHH:MM)
+        let contactDateTime;
+        if (contact_date) {
+            // สร้าง Date object จากค่าที่ส่งมา แล้วแปลงเป็น ISO string สำหรับ database
+            contactDateTime = new Date(contact_date).toISOString();
+        } else {
+            contactDateTime = new Date().toISOString();
+        }
+
+        console.log('Original contact_date from frontend:', contact_date);
+        console.log('Processed contactDateTime for database:', contactDateTime);
+
         // Add contact log
         const contactResult = await pool.query(
             `INSERT INTO x_crmsystem.contact_logs 
             (customer_id, contact_type, contact_status, contact_method, contact_person,
              contact_details, next_follow_up, notes, created_by, contact_date)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             RETURNING *`,
             [customerId, contact_type, contact_status, contact_method, contact_person,
-             contact_details, next_follow_up, notes, created_by]
+             contact_details, next_follow_up, notes, created_by, contactDateTime]
         );
+
+        console.log('Contact log saved with date:', contactResult.rows[0].contact_date);
 
         // Update customer status if provided
         if (customer_status_update) {
