@@ -443,7 +443,6 @@ function displayCustomers(customers) {
                 <td>${statusBadge}</td>
                 <td>${quotationBadge}</td>
                 <td>${contractValue}</td>
-                <td>${createdDate}</td>
             </tr>
         `;
     });
