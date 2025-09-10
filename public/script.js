@@ -413,7 +413,6 @@ function displayCustomers(customers) {
                         <th>สถานะ</th>
                         <th>การเสนอราคา</th>
                         <th>Contract Value</th>
-                        <th>วันที่สร้าง</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -797,7 +796,7 @@ async function updateCustomer(customerId) {
             hideAddForm();
             loadCustomers();
         } else {
-            showNotification('เกิดข้อผิดพลาดในการอัปเดตข้อมูル', 'danger');
+            showNotification('เกิดข้อผิดพลาดในการอัปเดตข้อมูล', 'danger');
         }
     } catch (error) {
         console.error('Error:', error);
