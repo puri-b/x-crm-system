@@ -201,6 +201,9 @@ async function loadCustomers() {
         allCustomers = await response.json();
         lastUpdateTime = new Date();
 
+        // เพิ่มข้อมูลสถานะการเสนอราคาจากการติดต่อล่าสุด
+        await enrichCustomersWithQuotationStatus();
+
         if (allCustomers.length === 0) {
             document.getElementById('customersTable').innerHTML = 
                 '<div class="empty-state"><i class="bi bi-people" style="font-size: 3rem; opacity: 0.3;"></i><br>ยังไม่มีข้อมูลลูกค้า<br><button class="btn btn-primary mt-2" onclick="showAddForm()">เพิ่มลูกค้าใหม่</button></div>';
@@ -215,6 +218,36 @@ async function loadCustomers() {
         document.getElementById('customersTable').innerHTML = 
             '<div class="empty-state"><i class="bi bi-exclamation-triangle" style="font-size: 3rem; opacity: 0.3;"></i><br>เกิดข้อผิดพลาดในการโหลดข้อมูล<br><button class="btn btn-outline-primary mt-2" onclick="loadCustomers()">ลองใหม่</button></div>';
         showNotification('เกิดข้อผิดพลาดในการโหลดข้อมูล', 'danger');
+    }
+}
+
+// ฟังก์ชันเพิ่มข้อมูลสถานะการเสนอราคา
+async function enrichCustomersWithQuotationStatus() {
+    for (let customer of allCustomers) {
+        try {
+            const response = await fetch(`/api/customers/${customer.id}/contacts`);
+            const contacts = await response.json();
+            
+            // หาการติดต่อที่มีการเสนอราคาล่าสุด
+            const quotationContacts = contacts.filter(contact => 
+                contact.quotation_status && contact.quotation_status !== 'ไม่เสนอราคา'
+            );
+            
+            if (quotationContacts.length > 0) {
+                // เรียงตามวันที่ล่าสุด
+                quotationContacts.sort((a, b) => new Date(b.contact_date) - new Date(a.contact_date));
+                customer.quotation_status = quotationContacts[0].quotation_status;
+                customer.quotation_date = quotationContacts[0].contact_date;
+                customer.quotation_amount = quotationContacts[0].quotation_amount;
+            } else {
+                customer.quotation_status = 'ยังไม่เสนอราคา';
+                customer.quotation_date = null;
+                customer.quotation_amount = null;
+            }
+        } catch (error) {
+            console.log(`Could not load contacts for customer ${customer.id}`);
+            customer.quotation_status = 'ไม่ทราบ';
+        }
     }
 }
 
@@ -378,6 +411,7 @@ function displayCustomers(customers) {
                         <th>แหล่งที่มา</th>
                         <th>Sales Person</th>
                         <th>สถานะ</th>
+                        <th>การเสนอราคา</th>
                         <th>Contract Value</th>
                         <th>วันที่สร้าง</th>
                     </tr>
@@ -395,6 +429,7 @@ function displayCustomers(customers) {
 
         const salesPersonBadge = getSalesPersonBadge(customer.sales_person);
         const statusBadge = getCustomerStatusBadge(customer.customer_status);
+        const quotationBadge = getQuotationStatusBadge(customer.quotation_status, customer.quotation_amount);
 
         tableHTML += `
             <tr class="customer-row" onclick="viewCustomer(${customer.id})">
@@ -406,6 +441,7 @@ function displayCustomers(customers) {
                 <td>${leadSourceBadge}</td>
                 <td>${salesPersonBadge}</td>
                 <td>${statusBadge}</td>
+                <td>${quotationBadge}</td>
                 <td>${contractValue}</td>
                 <td>${createdDate}</td>
             </tr>
@@ -428,6 +464,7 @@ function displayMobileCustomers(customers) {
             '<span class="badge badge-offline">Offline</span>';
         const salesPersonBadge = getSalesPersonBadge(customer.sales_person);
         const statusBadge = getCustomerStatusBadge(customer.customer_status);
+        const quotationBadge = getQuotationStatusBadge(customer.quotation_status, customer.quotation_amount);
 
         mobileHTML += `
             <div class="mobile-table-card" onclick="viewCustomer(${customer.id})">
@@ -439,6 +476,7 @@ function displayMobileCustomers(customers) {
                 </div>
                 <div class="badges">
                     ${statusBadge}
+                    ${quotationBadge}
                     ${leadSourceBadge}
                     ${salesPersonBadge}
                     <span class="badge bg-secondary">${contractValue}</span>
@@ -454,6 +492,35 @@ function displayMobileCustomers(customers) {
     });
     
     document.getElementById('customersTable').innerHTML = mobileHTML;
+}
+
+// ฟังก์ชันสร้าง badge สำหรับสถานะการเสนอราคา
+function getQuotationStatusBadge(status, amount) {
+    if (!status || status === 'ยังไม่เสนอราคา') {
+        return '<span class="badge bg-secondary" title="ยังไม่มีการเสนอราคา"><i class="bi bi-dash-circle"></i> ยังไม่เสนอ</span>';
+    }
+    
+    const colors = {
+        'เสนอราคาแล้ว': 'bg-info',
+        'รอตอบกลับ': 'bg-warning',
+        'อนุมัติราคา': 'bg-success',
+        'ไม่อนุมัติราคา': 'bg-danger',
+        'ต่อรองราคา': 'bg-primary'
+    };
+    
+    const icons = {
+        'เสนอราคาแล้ว': 'bi-file-earmark-text',
+        'รอตอบกลับ': 'bi-clock-history',
+        'อนุมัติราคา': 'bi-check-circle',
+        'ไม่อนุมัติราคา': 'bi-x-circle',
+        'ต่อรองราคา': 'bi-arrow-left-right'
+    };
+    
+    const color = colors[status] || 'bg-secondary';
+    const icon = icons[status] || 'bi-question-circle';
+    const amountText = amount ? ` (${formatCurrency(amount)})` : '';
+    
+    return `<span class="badge ${color}" title="${status}${amountText}"><i class="${icon}"></i> ${status}</span>`;
 }
 
 function getCustomerStatusBadge(status) {
@@ -581,6 +648,10 @@ function showCustomerDetail(customer) {
                             <div class="col-md-6 mb-3">
                                 <strong>สถานะลูกค้า:</strong><br>
                                 ${getCustomerStatusBadge(customer.customer_status)}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <strong>การเสนอราคา:</strong><br>
+                                ${getQuotationStatusBadge(customer.quotation_status, customer.quotation_amount)}
                             </div>
                             <div class="col-md-12 mb-3">
                                 <strong>ที่ตั้ง:</strong><br>
@@ -727,7 +798,7 @@ async function updateCustomer(customerId) {
             hideAddForm();
             loadCustomers();
         } else {
-            showNotification('เกิดข้อผิดพลาดในการอัปเดตข้อมูล', 'danger');
+            showNotification('เกิดข้อผิดพลาดในการอัปเดตข้อมูル', 'danger');
         }
     } catch (error) {
         console.error('Error:', error);
@@ -920,7 +991,7 @@ function showSettings() {
                                     <p class="card-text mb-1"><strong>จำนวนลูกค้าทั้งหมด:</strong> ${allCustomers.length} ราย</p>
                                     <p class="card-text mb-1"><strong>จำนวนที่แสดง:</strong> ${filteredCustomers.length} ราย</p>
                                     <p class="card-text mb-1"><strong>อัพเดตล่าสุด:</strong> ${lastUpdateTime ? new Date(lastUpdateTime).toLocaleString('th-TH') : 'ไม่ทราบ'}</p>
-                                    <p class="card-text mb-0"><strong>เวอร์ชั่น:</strong> 1.1.0</p>
+                                    <p class="card-text mb-0"><strong>เวอร์ชั่น:</strong> 1.2.0</p>
                                 </div>
                             </div>
                         </div>
@@ -1052,7 +1123,8 @@ function convertToCSV(data) {
         'ID', 'ชื่อบริษัท', 'ที่ตั้ง', 'ข้อมูลการจดทะเบียน', 'ประเภทธุรกิจ', 
         'ชื่อผู้ติดต่อ', 'เบอร์โทรศัพท์', 'ประวัติการติดต่อ', 'งบประมาณ', 
         'ผลิตภัณฑ์ที่สนใจ', 'Pain Points', 'Contract Value', 'อีเมล', 
-        'แหล่งที่มา Lead', 'Sales Person', 'สถานะลูกค้า', 'วันที่สร้าง', 'แก้ไขล่าสุด'
+        'แหล่งที่มา Lead', 'Sales Person', 'สถานะลูกค้า', 'การเสนอราคา', 'จำนวนเงินเสนอราคา',
+        'วันที่สร้าง', 'แก้ไขล่าสุด'
     ];
 
     const csvRows = [headers.join(',')];
@@ -1075,6 +1147,8 @@ function convertToCSV(data) {
             `"${customer.lead_source || ''}"`,
             `"${customer.sales_person || ''}"`,
             `"${customer.customer_status || ''}"`,
+            `"${customer.quotation_status || ''}"`,
+            customer.quotation_amount || '',
             `"${new Date(customer.created_at).toLocaleString('th-TH')}"`,
             `"${new Date(customer.updated_at).toLocaleString('th-TH')}"`
         ];
@@ -1587,7 +1661,7 @@ function executeAdvancedSearch() {
     
     advancedSearchCriteria = {};
     
-    // เก็บเกณฑ์การค้นหา
+    // เก็บเกตข์การค้นหา
     for (let [key, value] of formData.entries()) {
         if (value.trim()) {
             advancedSearchCriteria[key] = value.trim();
@@ -1694,6 +1768,21 @@ async function showContactModal(customerId) {
                                             </select>
                                         </div>
                                         <div class="mb-3">
+                                            <label class="form-label">การเสนอราคา *</label>
+                                            <select class="form-select" name="quotation_status" required>
+                                                <option value="ไม่เสนอราคา">ไม่เสนอราคา</option>
+                                                <option value="เสนอราคาแล้ว">เสนอราคาแล้ว</option>
+                                                <option value="รอตอบกลับ">รอตอบกลับ</option>
+                                                <option value="อนุมัติราคา">อนุมัติราคา</option>
+                                                <option value="ไม่อนุมัติราคา">ไม่อนุมัติราคา</option>
+                                                <option value="ต่อรองราคา">ต่อรองราคา</option>
+                                            </select>
+                                        </div>
+                                        <div class="mb-3" id="quotationAmountDiv" style="display: none;">
+                                            <label class="form-label">จำนวนเงินที่เสนอ (บาท)</label>
+                                            <input type="number" class="form-control" name="quotation_amount" step="0.01" placeholder="ระบุจำนวนเงิน">
+                                        </div>
+                                        <div class="mb-3">
                                             <label class="form-label">ช่องทางติดต่อ</label>
                                             <select class="form-select" name="contact_method">
                                                 <option value="">เลือกช่องทาง</option>
@@ -1762,6 +1851,22 @@ async function showContactModal(customerId) {
         // เพิ่ม data attribute เพื่อให้ functions อื่นเข้าถึงได้
         document.getElementById('contactModal').setAttribute('data-customer-id', customerId);
 
+        // เพิ่ม event listener สำหรับ quotation status
+        const quotationSelect = document.querySelector('select[name="quotation_status"]');
+        const quotationAmountDiv = document.getElementById('quotationAmountDiv');
+        
+        quotationSelect.addEventListener('change', function() {
+            if (this.value === 'เสนอราคาแล้ว' || this.value === 'รอตอบกลับ' || 
+                this.value === 'อนุมัติราคา' || this.value === 'ไม่อนุมัติราคา' || 
+                this.value === 'ต่อรองราคา') {
+                quotationAmountDiv.style.display = 'block';
+                document.querySelector('input[name="quotation_amount"]').required = true;
+            } else {
+                quotationAmountDiv.style.display = 'none';
+                document.querySelector('input[name="quotation_amount"]').required = false;
+            }
+        });
+
         document.getElementById('contactForm').addEventListener('submit', function(e) {
             e.preventDefault();
             addContactLog(customerId);
@@ -1798,6 +1903,10 @@ function generateContactHistory(contacts) {
             hour12: false
         });
 
+        const quotationInfo = contact.quotation_status && contact.quotation_status !== 'ไม่เสนอราคา' 
+            ? `<div class="mt-1"><small><strong>การเสนอราคา:</strong> ${getQuotationStatusBadge(contact.quotation_status, contact.quotation_amount)}</small></div>`
+            : '';
+
         return `
             <div class="card mb-2">
                 <div class="card-body p-3">
@@ -1823,6 +1932,7 @@ function generateContactHistory(contacts) {
                     </div>
                     ${contact.contact_person ? `<div class="mt-1"><small><strong>ผู้ติดต่อ:</strong> ${contact.contact_person}</small></div>` : ''}
                     ${contact.contact_details ? `<div class="mt-1"><small><strong>รายละเอียด:</strong> ${contact.contact_details}</small></div>` : ''}
+                    ${quotationInfo}
                     ${contact.next_follow_up ? `<div class="mt-1"><small><strong>ติดตามครั้งต่อไป:</strong> ${new Date(contact.next_follow_up).toLocaleDateString('th-TH')}</small></div>` : ''}
                     ${contact.notes ? `<div class="mt-1"><small><strong>หมายเหตุ:</strong> ${contact.notes}</small></div>` : ''}
                     <div class="mt-1"><small class="text-muted">บันทึกโดย: ${contact.created_by || 'ไม่ระบุ'}</small></div>
@@ -1896,6 +2006,21 @@ function showEditContactModal(contact) {
                                 </select>
                             </div>
                             <div class="mb-3">
+                                <label class="form-label">การเสนอราคา *</label>
+                                <select class="form-select" name="quotation_status" id="editQuotationStatus" required>
+                                    <option value="ไม่เสนอราคา" ${(!contact.quotation_status || contact.quotation_status === 'ไม่เสนอราคา') ? 'selected' : ''}>ไม่เสนอราคา</option>
+                                    <option value="เสนอราคาแล้ว" ${contact.quotation_status === 'เสนอราคาแล้ว' ? 'selected' : ''}>เสนอราคาแล้ว</option>
+                                    <option value="รอตอบกลับ" ${contact.quotation_status === 'รอตอบกลับ' ? 'selected' : ''}>รอตอบกลับ</option>
+                                    <option value="อนุมัติราคา" ${contact.quotation_status === 'อนุมัติราคา' ? 'selected' : ''}>อนุมัติราคา</option>
+                                    <option value="ไม่อนุมัติราคา" ${contact.quotation_status === 'ไม่อนุมัติราคา' ? 'selected' : ''}>ไม่อนุมัติราคา</option>
+                                    <option value="ต่อรองราคา" ${contact.quotation_status === 'ต่อรองราคา' ? 'selected' : ''}>ต่อรองราคา</option>
+                                </select>
+                            </div>
+                            <div class="mb-3" id="editQuotationAmountDiv" style="display: ${(contact.quotation_status && contact.quotation_status !== 'ไม่เสนอราคา') ? 'block' : 'none'};">
+                                <label class="form-label">จำนวนเงินที่เสนอ (บาท)</label>
+                                <input type="number" class="form-control" name="quotation_amount" step="0.01" value="${contact.quotation_amount || ''}" placeholder="ระบุจำนวนเงิน">
+                            </div>
+                            <div class="mb-3">
                                 <label class="form-label">ช่องทางติดต่อ</label>
                                 <select class="form-select" name="contact_method">
                                     <option value="">เลือกช่องทาง</option>
@@ -1937,6 +2062,20 @@ function showEditContactModal(contact) {
     const modal = new bootstrap.Modal(document.getElementById('editContactModal'));
     modal.show();
 
+    // เพิ่ม event listener สำหรับ edit quotation status
+    const editQuotationSelect = document.getElementById('editQuotationStatus');
+    const editQuotationAmountDiv = document.getElementById('editQuotationAmountDiv');
+    
+    editQuotationSelect.addEventListener('change', function() {
+        if (this.value === 'เสนอราคาแล้ว' || this.value === 'รอตอบกลับ' || 
+            this.value === 'อนุมัติราคา' || this.value === 'ไม่อนุมัติราคา' || 
+            this.value === 'ต่อรองราคา') {
+            editQuotationAmountDiv.style.display = 'block';
+        } else {
+            editQuotationAmountDiv.style.display = 'none';
+        }
+    });
+
     document.getElementById('editContactModal').addEventListener('hidden.bs.modal', function () {
         this.remove();
     });
@@ -1964,7 +2103,9 @@ async function updateContact(contactId) {
         contact_details: formData.get('contact_details'),
         next_follow_up: formData.get('next_follow_up') || null,
         notes: formData.get('notes'),
-        contact_date: contactDateTime
+        contact_date: contactDateTime,
+        quotation_status: formData.get('quotation_status'),
+        quotation_amount: formData.get('quotation_amount') ? parseFloat(formData.get('quotation_amount')) : null
     };
 
     try {
@@ -2062,7 +2203,9 @@ async function addContactLog(customerId) {
         notes: formData.get('notes'),
         created_by: formData.get('created_by'),
         customer_status_update: formData.get('customer_status_update') || null,
-        contact_date: contactDateTime
+        contact_date: contactDateTime,
+        quotation_status: formData.get('quotation_status'),
+        quotation_amount: formData.get('quotation_amount') ? parseFloat(formData.get('quotation_amount')) : null
     };
 
     // Show loading state
