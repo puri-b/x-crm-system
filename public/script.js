@@ -1659,7 +1659,7 @@ function executeAdvancedSearch() {
     
     advancedSearchCriteria = {};
     
-    // เก็บเกตข์การค้นหา
+    // เก็บเงตข์การค้นหา
     for (let [key, value] of formData.entries()) {
         if (value.trim()) {
             advancedSearchCriteria[key] = value.trim();
@@ -2124,7 +2124,11 @@ async function updateContact(contactId) {
                 const customerId = contactModal.getAttribute('data-customer-id');
                 if (customerId) {
                     contactModal.querySelector('[data-bs-dismiss="modal"]').click();
-                    setTimeout(() => showContactModal(customerId), 300);
+                    setTimeout(() => {
+                        showContactModal(customerId);
+                        // รีเฟรชรายการลูกค้าเพื่ออัพเดตสถานะการเสนอราคา
+                        loadCustomers();
+                    }, 300);
                 }
             }
         } else {
@@ -2156,7 +2160,11 @@ async function deleteContact(contactId) {
                 const customerId = contactModal.getAttribute('data-customer-id');
                 if (customerId) {
                     contactModal.querySelector('[data-bs-dismiss="modal"]').click();
-                    setTimeout(() => showContactModal(customerId), 300);
+                    setTimeout(() => {
+                        showContactModal(customerId);
+                        // รีเฟรชรายการลูกค้าเพื่ออัพเดตสถานะการเสนอราคา
+                        loadCustomers();
+                    }, 300);
                 }
             }
         } else {
@@ -2168,7 +2176,7 @@ async function deleteContact(contactId) {
     }
 }
 
-// แก้ไขฟังก์ชันบันทึกการติดต่อ
+// แก้ไขฟังก์ชันบันทึกการติดต่อ - แก้ปัญหาหลัก
 async function addContactLog(customerId) {
     const form = document.getElementById('contactForm');
     const formData = new FormData(form);
@@ -2224,8 +2232,8 @@ async function addContactLog(customerId) {
         if (response.ok) {
             showNotification('บันทึกการติดต่อเรียบร้อยแล้ว', 'success');
             document.getElementById('contactModal').querySelector('[data-bs-dismiss="modal"]').click();
-            // Refresh customer list to show updated status
-            loadCustomers();
+            // ✅ สำคัญ: Refresh customer list เพื่อให้แสดงสถานะการเสนอราคาใหม่
+            await loadCustomers();
         } else {
             const errorData = await response.json();
             showNotification('เกิดข้อผิดพลาดในการบันทึกข้อมูล: ' + (errorData.error || 'ไม่ทราบสาเหตุ'), 'danger');
