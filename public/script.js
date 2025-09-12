@@ -598,14 +598,44 @@ function changePage(page) {
 
 async function viewCustomer(customerId) {
     try {
-        const response = await fetch(`/api/customers/${customerId}`);
-        const customer = await response.json();
-
-        if (response.ok) {
-            showCustomerDetail(customer);
-        } else {
-            alert('ไม่สามารถโหลดข้อมูลลูกค้าได้');
+        // หาข้อมูลลูกค้าจาก allCustomers array ที่มีข้อมูล quotation status enriched แล้ว
+        let customer = allCustomers.find(c => c.id == customerId);
+        
+        // ถ้าไม่พบใน array ให้ fetch จาก API
+        if (!customer) {
+            const response = await fetch(`/api/customers/${customerId}`);
+            customer = await response.json();
+            
+            if (!response.ok) {
+                alert('ไม่สามารถโหลดข้อมูลลูกค้าได้');
+                return;
+            }
+            
+            // เพิ่มข้อมูล quotation status ถ้าไม่มี
+            if (!customer.quotation_status) {
+                try {
+                    const contactsResponse = await fetch(`/api/customers/${customerId}/contacts`);
+                    const contacts = await contactsResponse.json();
+                    
+                    const quotationContacts = contacts.filter(contact => 
+                        contact.quotation_status && contact.quotation_status !== 'ไม่เสนอราคา'
+                    );
+                    
+                    if (quotationContacts.length > 0) {
+                        quotationContacts.sort((a, b) => new Date(b.contact_date) - new Date(a.contact_date));
+                        customer.quotation_status = quotationContacts[0].quotation_status;
+                        customer.quotation_amount = quotationContacts[0].quotation_amount;
+                    } else {
+                        customer.quotation_status = 'ยังไม่เสนอราคา';
+                    }
+                } catch (error) {
+                    customer.quotation_status = 'ไม่ทราบ';
+                }
+            }
         }
+        
+        showCustomerDetail(customer);
+        
     } catch (error) {
         console.error('Error:', error);
         alert('เกิดข้อผิดพลาดในการโหลดข้อมูล');
