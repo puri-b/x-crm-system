@@ -1,3 +1,4 @@
+// เพิ่มการจัดการ Quotation Filter ในส่วน DOMContentLoaded
 document.addEventListener('DOMContentLoaded', function() {
     loadSettings();
     loadCustomers();
@@ -10,12 +11,13 @@ document.addEventListener('DOMContentLoaded', function() {
         addCustomer();
     });
 
-    // Desktop filters
+    // Desktop filters - เพิ่ม quotationFilter
     const searchInput = document.getElementById('searchInput');
     const leadSourceFilter = document.getElementById('leadSourceFilter');
     const productFilter = document.getElementById('productFilter');
     const salesPersonFilter = document.getElementById('salesPersonFilter');
     const statusFilter = document.getElementById('statusFilter');
+    const quotationFilter = document.getElementById('quotationFilter');
     const sortBy = document.getElementById('sortBy');
 
     if (searchInput) {
@@ -53,6 +55,14 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // เพิ่ม event listener สำหรับ quotation filter
+    if (quotationFilter) {
+        quotationFilter.addEventListener('change', function() {
+            currentPage = 1;
+            filterAndSort();
+        });
+    }
+
     if (sortBy) {
         sortBy.addEventListener('change', function() {
             currentSort = this.value;
@@ -63,14 +73,15 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function setupMobileFilters() {
-    // Sync mobile and desktop filters
+    // Sync mobile and desktop filters - เพิ่ม quotationFilter
     const mobileInputs = {
         'searchInputMobile': 'searchInput',
         'sortByMobile': 'sortBy',
         'leadSourceFilterMobile': 'leadSourceFilter',
         'productFilterMobile': 'productFilter',
         'salesPersonFilterMobile': 'salesPersonFilter',
-        'statusFilterMobile': 'statusFilter'
+        'statusFilterMobile': 'statusFilter',
+        'quotationFilterMobile': 'quotationFilter'
     };
 
     Object.entries(mobileInputs).forEach(([mobileId, desktopId]) => {
@@ -101,156 +112,7 @@ function setupMobileFilters() {
     });
 }
 
-let allCustomers = [];
-let filteredCustomers = [];
-let currentPage = 1;
-let itemsPerPage = 10;
-let currentSort = 'created_at_desc';
-let autoRefreshInterval;
-let lastUpdateTime = null;
-
-function showAddForm() {
-    document.getElementById('addCustomerForm').style.display = 'block';
-    document.getElementById('customersList').style.display = 'none';
-    document.getElementById('tasksView').style.display = 'none';
-    document.getElementById('customerForm').reset();
-    
-    // Scroll to top on mobile
-    if (window.innerWidth <= 768) {
-        window.scrollTo(0, 0);
-    }
-}
-
-function hideAddForm() {
-    document.getElementById('addCustomerForm').style.display = 'none';
-    document.getElementById('customersList').style.display = 'block';
-    document.getElementById('tasksView').style.display = 'none';
-    resetForm();
-}
-
-async function addCustomer() {
-    const form = document.getElementById('customerForm');
-    const formData = new FormData(form);
-    
-    // Validate form
-    const errors = validateForm(formData);
-    if (errors.length > 0) {
-        showNotification('กรุณาแก้ไขข้อผิดพลาด:\n' + errors.join('\n'), 'danger', 5000);
-        return;
-    }
-    
-    const customerData = {
-        company_name: formData.get('company_name'),
-        location: formData.get('location'),
-        registration_info: formData.get('registration_info'),
-        business_type: formData.get('business_type'),
-        contact_names: formData.get('contact_names'),
-        phone_number: formData.get('phone_number'),
-        contact_history: formData.get('contact_history'),
-        budget: formData.get('budget') ? parseFloat(formData.get('budget')) : null,
-        required_products: formData.get('required_products'),
-        pain_points: formData.get('pain_points'),
-        contract_value: formData.get('contract_value') ? parseFloat(formData.get('contract_value')) : null,
-        email: formData.get('email'),
-        lead_source: formData.get('lead_source'),
-        sales_person: formData.get('sales_person'),
-        customer_status: formData.get('customer_status')
-    };
-
-    // Show loading
-    const submitButton = form.querySelector('button[type="submit"]');
-    const originalText = submitButton.innerHTML;
-    submitButton.disabled = true;
-    submitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>กำลังบันทึก...';
-
-    try {
-        const response = await fetch('/api/customers', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(customerData)
-        });
-
-        if (response.ok) {
-            showNotification('บันทึกข้อมูลลูกค้าเรียบร้อยแล้ว', 'success');
-            hideAddForm();
-            loadCustomers();
-        } else {
-            const errorData = await response.json();
-            showNotification('เกิดข้อผิดพลาด: ' + (errorData.error || 'ไม่สามารถบันทึกข้อมูลได้'), 'danger');
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        showNotification('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'danger');
-    } finally {
-        submitButton.disabled = false;
-        submitButton.innerHTML = originalText;
-    }
-}
-
-async function loadCustomers() {
-    document.getElementById('addCustomerForm').style.display = 'none';
-    document.getElementById('customersList').style.display = 'block';
-    document.getElementById('tasksView').style.display = 'none';
-    
-    try {
-        document.getElementById('customersTable').innerHTML = '<div class="loading">กำลังโหลดข้อมูล...</div>';
-        
-        const response = await fetch('/api/customers');
-        allCustomers = await response.json();
-        lastUpdateTime = new Date();
-
-        // เพิ่มข้อมูลสถานะการเสนอราคาจากการติดต่อล่าสุด
-        await enrichCustomersWithQuotationStatus();
-
-        if (allCustomers.length === 0) {
-            document.getElementById('customersTable').innerHTML = 
-                '<div class="empty-state"><i class="bi bi-people" style="font-size: 3rem; opacity: 0.3;"></i><br>ยังไม่มีข้อมูลลูกค้า<br><button class="btn btn-primary mt-2" onclick="showAddForm()">เพิ่มลูกค้าใหม่</button></div>';
-            return;
-        }
-
-        currentPage = 1;
-        filterAndSort();
-
-    } catch (error) {
-        console.error('Error:', error);
-        document.getElementById('customersTable').innerHTML = 
-            '<div class="empty-state"><i class="bi bi-exclamation-triangle" style="font-size: 3rem; opacity: 0.3;"></i><br>เกิดข้อผิดพลาดในการโหลดข้อมูล<br><button class="btn btn-outline-primary mt-2" onclick="loadCustomers()">ลองใหม่</button></div>';
-        showNotification('เกิดข้อผิดพลาดในการโหลดข้อมูล', 'danger');
-    }
-}
-
-// ฟังก์ชันเพิ่มข้อมูลสถานะการเสนอราคา
-async function enrichCustomersWithQuotationStatus() {
-    for (let customer of allCustomers) {
-        try {
-            const response = await fetch(`/api/customers/${customer.id}/contacts`);
-            const contacts = await response.json();
-            
-            // หาการติดต่อที่มีการเสนอราคาล่าสุด
-            const quotationContacts = contacts.filter(contact => 
-                contact.quotation_status && contact.quotation_status !== 'ไม่เสนอราคา'
-            );
-            
-            if (quotationContacts.length > 0) {
-                // เรียงตามวันที่ล่าสุด
-                quotationContacts.sort((a, b) => new Date(b.contact_date) - new Date(a.contact_date));
-                customer.quotation_status = quotationContacts[0].quotation_status;
-                customer.quotation_date = quotationContacts[0].contact_date;
-                customer.quotation_amount = quotationContacts[0].quotation_amount;
-            } else {
-                customer.quotation_status = 'ยังไม่เสนอราคา';
-                customer.quotation_date = null;
-                customer.quotation_amount = null;
-            }
-        } catch (error) {
-            console.log(`Could not load contacts for customer ${customer.id}`);
-            customer.quotation_status = 'ไม่ทราบ';
-        }
-    }
-}
-
+// อัพเดต filterAndSort function เพื่อรองรับ quotation filter
 function filterAndSort() {
     if (!allCustomers || allCustomers.length === 0) return;
 
@@ -259,12 +121,14 @@ function filterAndSort() {
     const productFilter = document.getElementById('productFilter');
     const salesPersonFilter = document.getElementById('salesPersonFilter');
     const statusFilter = document.getElementById('statusFilter');
+    const quotationFilter = document.getElementById('quotationFilter');
 
     const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
     const leadSourceValue = leadSourceFilter ? leadSourceFilter.value : '';
     const productValue = productFilter ? productFilter.value : '';
     const salesPersonValue = salesPersonFilter ? salesPersonFilter.value : '';
     const statusValue = statusFilter ? statusFilter.value : '';
+    const quotationValue = quotationFilter ? quotationFilter.value : '';
 
     // กรองข้อมูล
     filteredCustomers = allCustomers.filter(customer => {
@@ -283,6 +147,39 @@ function filterAndSort() {
         const matchesSalesPerson = !salesPersonValue || customer.sales_person === salesPersonValue;
         
         const matchesStatus = !statusValue || customer.customer_status === statusValue;
+
+        // Quotation status filter
+        let matchesQuotation = true;
+        if (quotationValue) {
+            const customerQuotationStatus = customer.quotation_status || 'ยังไม่เสนอราคา';
+            
+            switch(quotationValue) {
+                case 'เสนอแล้ว':
+                    matchesQuotation = customerQuotationStatus !== 'ยังไม่เสนอราคา' && 
+                                     customerQuotationStatus !== 'ไม่ทราบ' &&
+                                     customerQuotationStatus !== 'ไม่เสนอราคา';
+                    break;
+                case 'ยังไม่เสนอ':
+                    matchesQuotation = customerQuotationStatus === 'ยังไม่เสนอราคา' || 
+                                     customerQuotationStatus === 'ไม่ทราบ' ||
+                                     customerQuotationStatus === 'ไม่เสนอราคา';
+                    break;
+                case 'อนุมัติราคา':
+                    matchesQuotation = customerQuotationStatus === 'อนุมัติราคา';
+                    break;
+                case 'ไม่อนุมัติราคา':
+                    matchesQuotation = customerQuotationStatus === 'ไม่อนุมัติราคา';
+                    break;
+                case 'รอตอบกลับ':
+                    matchesQuotation = customerQuotationStatus === 'รอตอบกลับ';
+                    break;
+                case 'ต่อรองราคา':
+                    matchesQuotation = customerQuotationStatus === 'ต่อรองราคา';
+                    break;
+                default:
+                    matchesQuotation = true;
+            }
+        }
 
         // Advanced search
         let matchesAdvanced = true;
@@ -333,13 +230,94 @@ function filterAndSort() {
             }
         }
 
-        return matchesSearch && matchesLeadSource && matchesProduct && matchesSalesPerson && matchesStatus && matchesAdvanced;
+        return matchesSearch && matchesLeadSource && matchesProduct && matchesSalesPerson && 
+               matchesStatus && matchesQuotation && matchesAdvanced;
     });
 
     // เรียงลำดับข้อมูล
     sortCustomers();
     
     // แสดงข้อมูลตาม pagination
+    displayPaginatedCustomers();
+}
+
+// อัพเดต clearFilters function
+function clearFilters() {
+    document.getElementById('searchInput').value = '';
+    document.getElementById('leadSourceFilter').value = '';
+    document.getElementById('productFilter').value = '';
+    document.getElementById('salesPersonFilter').value = '';
+    document.getElementById('statusFilter').value = '';
+    document.getElementById('quotationFilter').value = '';
+    document.getElementById('sortBy').value = 'created_at_desc';
+    
+    // Clear mobile filters too
+    document.getElementById('searchInputMobile').value = '';
+    document.getElementById('sortByMobile').value = 'created_at_desc';
+    document.getElementById('leadSourceFilterMobile').value = '';
+    document.getElementById('productFilterMobile').value = '';
+    document.getElementById('salesPersonFilterMobile').value = '';
+    document.getElementById('statusFilterMobile').value = '';
+    document.getElementById('quotationFilterMobile').value = '';
+    
+    advancedSearchCriteria = {};
+    currentSort = 'created_at_desc';
+    currentPage = 1;
+    filterAndSort();
+    updateSearchStatus();
+}
+
+// อัพเดต quickFilter function เพื่อเพิ่ม quotation filter options
+function quickFilter(filterType) {
+    // ล้างตัวกรองเดิม
+    clearFilters();
+    
+    const today = new Date();
+    const sevenDaysAgo = new Date(today.getTime() - (7 * 24 * 60 * 60 * 1000));
+    
+    switch(filterType) {
+        case 'high_value':
+            // Filter customers with contract value > 100,000
+            filteredCustomers = allCustomers.filter(customer => 
+                customer.contract_value && customer.contract_value > 100000
+            );
+            break;
+            
+        case 'recent':
+            // Filter customers created in last 7 days
+            filteredCustomers = allCustomers.filter(customer => 
+                new Date(customer.created_at) >= sevenDaysAgo
+            );
+            break;
+            
+        case 'no_contact':
+            // Filter customers with no contract value
+            filteredCustomers = allCustomers.filter(customer => 
+                !customer.contract_value || customer.contract_value === 0
+            );
+            break;
+            
+        case 'online_leads':
+            document.getElementById('leadSourceFilter').value = 'Online';
+            document.getElementById('leadSourceFilterMobile').value = 'Online';
+            filterAndSort();
+            return;
+            
+        // เพิ่ม quick filter สำหรับการเสนอราคา
+        case 'quoted':
+            document.getElementById('quotationFilter').value = 'เสนอแล้ว';
+            document.getElementById('quotationFilterMobile').value = 'เสนอแล้ว';
+            filterAndSort();
+            return;
+            
+        case 'not_quoted':
+            document.getElementById('quotationFilter').value = 'ยังไม่เสนอ';
+            document.getElementById('quotationFilterMobile').value = 'ยังไม่เสนอ';
+            filterAndSort();
+            return;
+    }
+    
+    sortCustomers();
     displayPaginatedCustomers();
 }
 
