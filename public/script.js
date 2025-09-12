@@ -307,14 +307,16 @@ function filterAndSort() {
                     }
                 } else if (field === 'created_from') {
                     const customerDate = new Date(customer.created_at);
-                    const searchDate = new Date(value);
+                    // แปลงวันที่ค้นหาจาก พ.ศ. เป็น ค.ศ. ก่อนเปรียบเทียบ
+                    const searchDate = convertBuddhistToGregorian(new Date(value));
                     if (customerDate < searchDate) {
                         matchesAdvanced = false;
                         break;
                     }
                 } else if (field === 'created_to') {
                     const customerDate = new Date(customer.created_at);
-                    const searchDate = new Date(value);
+                    // แปลงวันที่ค้นหาจาก พ.ศ. เป็น ค.ศ. ก่อนเปรียบเทียบ
+                    const searchDate = convertBuddhistToGregorian(new Date(value));
                     searchDate.setHours(23, 59, 59, 999);
                     if (customerDate > searchDate) {
                         matchesAdvanced = false;
@@ -339,6 +341,21 @@ function filterAndSort() {
     
     // แสดงข้อมูลตาม pagination
     displayPaginatedCustomers();
+}
+
+// ฟังก์ชันช่วยแปลงวันที่จาก พ.ศ. เป็น ค.ศ.
+function convertBuddhistToGregorian(date) {
+    // ตรวจสอบว่าปีเป็น พ.ศ. หรือไม่ (มากกว่า 2500)
+    if (date.getFullYear() > 2500) {
+        return new Date(date.getFullYear() - 543, date.getMonth(), date.getDate());
+    }
+    return date;
+}
+
+// ฟังก์ชันช่วยแปลงวันที่จาก ค.ศ. เป็น พ.ศ. สำหรับการแสดงผล
+function convertGregorianToBuddhist(date) {
+    const buddhistYear = date.getFullYear() + 543;
+    return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${buddhistYear}`;
 }
 function sortCustomers() {
     const [field, direction] = currentSort.split('_');
@@ -419,7 +436,8 @@ function displayCustomers(customers) {
     `;
 
     customers.forEach(customer => {
-        const createdDate = new Date(customer.created_at).toLocaleDateString('th-TH');
+        // แปลงวันที่จาก ค.ศ. เป็น พ.ศ. สำหรับการแสดงผล
+        const createdDate = convertGregorianToBuddhist(new Date(customer.created_at));
         const contractValue = customer.contract_value ? 
             formatCurrency(customer.contract_value) : '-';
         const leadSourceBadge = customer.lead_source === 'Online' ? 
@@ -448,6 +466,49 @@ function displayCustomers(customers) {
 
     tableHTML += '</tbody></table></div>';
     document.getElementById('customersTable').innerHTML = tableHTML;
+}
+
+function displayMobileCustomers(customers) {
+    let mobileHTML = '';
+    
+    customers.forEach(customer => {
+        // แปลงวันที่จาก ค.ศ. เป็น พ.ศ. สำหรับการแสดงผลใน mobile
+        const createdDate = convertGregorianToBuddhist(new Date(customer.created_at));
+        const contractValue = customer.contract_value ? 
+            formatCurrency(customer.contract_value) : 'ไม่ระบุ';
+        const leadSourceBadge = customer.lead_source === 'Online' ? 
+            '<span class="badge badge-online">Online</span>' : 
+            '<span class="badge badge-offline">Offline</span>';
+        const salesPersonBadge = getSalesPersonBadge(customer.sales_person);
+        const statusBadge = getCustomerStatusBadge(customer.customer_status);
+        const quotationBadge = getQuotationStatusBadge(customer.quotation_status, customer.quotation_amount);
+
+        mobileHTML += `
+            <div class="mobile-table-card" onclick="viewCustomer(${customer.id})">
+                <div class="company-name">${customer.company_name || 'ไม่ระบุชื่อบริษัท'}</div>
+                <div class="contact-info">
+                    ${customer.contact_names ? `<i class="bi bi-person me-1"></i>${customer.contact_names}` : ''}
+                    ${customer.phone_number ? `<br><i class="bi bi-telephone me-1"></i>${customer.phone_number}` : ''}
+                    ${customer.email ? `<br><i class="bi bi-envelope me-1"></i>${customer.email}` : ''}
+                </div>
+                <div class="badges">
+                    ${statusBadge}
+                    ${quotationBadge}
+                    ${leadSourceBadge}
+                    ${salesPersonBadge}
+                    <span class="badge bg-secondary">${contractValue}</span>
+                </div>
+                <div class="mt-2">
+                    <small class="text-muted">
+                        <i class="bi bi-calendar me-1"></i>${createdDate}
+                        ${customer.required_products ? ` • ${customer.required_products}` : ''}
+                    </small>
+                </div>
+            </div>
+        `;
+    });
+    
+    document.getElementById('customersTable').innerHTML = mobileHTML;
 }
 
 function displayMobileCustomers(customers) {
@@ -719,11 +780,11 @@ function showCustomerDetail(customer) {
                             </div>
                             <div class="col-md-6 mb-3">
                                 <strong>วันที่สร้าง:</strong><br>
-                                ${new Date(customer.created_at).toLocaleString('th-TH')}
+                                ${formatDateTimeThai(customer.created_at)}
                             </div>
                             <div class="col-md-6 mb-3">
                                 <strong>แก้ไขล่าสุด:</strong><br>
-                                ${new Date(customer.updated_at).toLocaleString('th-TH')}
+                                ${formatDateTimeThai(customer.updated_at)}
                             </div>
                         </div>
                     </div>
@@ -746,6 +807,23 @@ function showCustomerDetail(customer) {
     document.getElementById('customerModal').addEventListener('hidden.bs.modal', function () {
         this.remove();
     });
+}
+
+// ฟังก์ชันช่วยจัดรูปแบบวันที่และเวลาเป็นภาษาไทย (พ.ศ.)
+function formatDateTimeThai(dateString) {
+    const date = new Date(dateString);
+    const options = {
+        year: 'numeric',
+        month: '2-digit', 
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+    };
+    
+    // แปลงเป็น พ.ศ.
+    const thaiDate = date.toLocaleDateString('th-TH-u-ca-buddhist', options);
+    return thaiDate;
 }
 function editCustomer(customerId) {
     fetch(`/api/customers/${customerId}`)
