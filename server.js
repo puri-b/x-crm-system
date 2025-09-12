@@ -315,12 +315,13 @@ app.get('/api/contacts/:id', async (req, res) => {
     }
 });
 
-// Update contact
+// Update contact - แก้ไขให้รองรับ quotation_status และ quotation_amount
 app.put('/api/contacts/:id', async (req, res) => {
     const contactId = req.params.id;
     const {
         contact_type, contact_status, contact_method, contact_person,
-        contact_details, next_follow_up, notes, contact_date
+        contact_details, next_follow_up, notes, contact_date,
+        quotation_status, quotation_amount
     } = req.body;
 
     try {
@@ -328,11 +329,13 @@ app.put('/api/contacts/:id', async (req, res) => {
             `UPDATE x_crmsystem.contact_logs 
             SET contact_type = $1, contact_status = $2, contact_method = $3, 
                 contact_person = $4, contact_details = $5, next_follow_up = $6, 
-                notes = $7, contact_date = $8, updated_at = CURRENT_TIMESTAMP
-            WHERE id = $9
+                notes = $7, contact_date = $8, quotation_status = $9, 
+                quotation_amount = $10, updated_at = CURRENT_TIMESTAMP
+            WHERE id = $11
             RETURNING *`,
             [contact_type, contact_status, contact_method, contact_person,
-             contact_details, next_follow_up, notes, contact_date, contactId]
+             contact_details, next_follow_up, notes, contact_date, 
+             quotation_status, quotation_amount, contactId]
         );
         
         if (result.rows.length === 0) {
@@ -366,12 +369,13 @@ app.delete('/api/contacts/:id', async (req, res) => {
     }
 });
 
-// แก้ไขการจัดการเวลาในการบันทึกการติดต่อ
+// แก้ไขการจัดการเวลาในการบันทึกการติดต่อ - รองรับ quotation_status และ quotation_amount
 app.post('/api/customers/:id/contacts', async (req, res) => {
     const customerId = req.params.id;
     const {
         contact_type, contact_status, contact_method, contact_person,
-        contact_details, next_follow_up, notes, created_by, customer_status_update, contact_date
+        contact_details, next_follow_up, notes, created_by, customer_status_update, 
+        contact_date, quotation_status, quotation_amount
     } = req.body;
 
     try {
@@ -391,18 +395,22 @@ app.post('/api/customers/:id/contacts', async (req, res) => {
         console.log('Original contact_date from frontend:', contact_date);
         console.log('Final contactDateTime for database:', contactDateTime);
 
-        // Add contact log
+        // Add contact log with quotation information
         const contactResult = await pool.query(
             `INSERT INTO x_crmsystem.contact_logs 
             (customer_id, contact_type, contact_status, contact_method, contact_person,
-             contact_details, next_follow_up, notes, created_by, contact_date)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+             contact_details, next_follow_up, notes, created_by, contact_date,
+             quotation_status, quotation_amount)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
             RETURNING *`,
             [customerId, contact_type, contact_status, contact_method, contact_person,
-             contact_details, next_follow_up, notes, created_by, contactDateTime]
+             contact_details, next_follow_up, notes, created_by, contactDateTime,
+             quotation_status, quotation_amount]
         );
 
         console.log('Contact log saved with date:', contactResult.rows[0].contact_date);
+        console.log('Quotation status saved:', contactResult.rows[0].quotation_status);
+        console.log('Quotation amount saved:', contactResult.rows[0].quotation_amount);
 
         // Update customer status if provided
         if (customer_status_update) {
@@ -426,7 +434,7 @@ app.get('/api/health', (req, res) => {
     res.json({ 
         status: 'OK', 
         timestamp: new Date().toISOString(),
-        version: '1.1.0'
+        version: '1.2.0'
     });
 });
 
@@ -540,6 +548,6 @@ if (require.main === module) {
     app.listen(port, () => {
         console.log(`Server running at http://localhost:${port}`);
         console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-        console.log('CRM System v1.1.0 - Mobile Responsive');
+        console.log('CRM System v1.2.0 - Updated with Quotation Status');
     });
 }

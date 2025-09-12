@@ -340,7 +340,6 @@ function filterAndSort() {
     // แสดงข้อมูลตาม pagination
     displayPaginatedCustomers();
 }
-
 function sortCustomers() {
     const [field, direction] = currentSort.split('_');
     
@@ -398,6 +397,7 @@ function displayCustomers(customers) {
         return;
     }
 
+    // แก้ไข table header - เอา email ออก แทนที่ด้วย วันที่บันทึกข้อมูล
     let tableHTML = `
         <div class="table-responsive">
             <table class="table table-hover">
@@ -406,7 +406,7 @@ function displayCustomers(customers) {
                         <th>ชื่อบริษัท</th>
                         <th>ผู้ติดต่อ</th>
                         <th>โทรศัพท์</th>
-                        <th>อีเมล</th>
+                        <th>วันที่บันทึกข้อมูล</th>
                         <th>ผลิตภัณฑ์ที่สนใจ</th>
                         <th>แหล่งที่มา</th>
                         <th>Sales Person</th>
@@ -435,7 +435,7 @@ function displayCustomers(customers) {
                 <td><strong>${customer.company_name || '-'}</strong></td>
                 <td class="text-truncate-custom">${customer.contact_names || '-'}</td>
                 <td>${customer.phone_number || '-'}</td>
-                <td class="text-truncate-custom">${customer.email || '-'}</td>
+                <td>${createdDate}</td>
                 <td class="text-truncate-custom">${customer.required_products || '-'}</td>
                 <td>${leadSourceBadge}</td>
                 <td>${salesPersonBadge}</td>
@@ -492,9 +492,9 @@ function displayMobileCustomers(customers) {
     document.getElementById('customersTable').innerHTML = mobileHTML;
 }
 
-// ฟังก์ชันสร้าง badge สำหรับสถานะการเสนอราคา
+// ฟังก์ชันสร้าง badge สำหรับสถานะการเสนอราคา - ปรับปรุงการแสดงผล
 function getQuotationStatusBadge(status, amount) {
-    if (!status || status === 'ยังไม่เสนอราคา') {
+    if (!status || status === 'ยังไม่เสนอราคา' || status === 'ไม่ทราบ') {
         return '<span class="badge bg-secondary" title="ยังไม่มีการเสนอราคา"><i class="bi bi-dash-circle"></i> ยังไม่เสนอ</span>';
     }
     
@@ -717,7 +717,6 @@ function showCustomerDetail(customer) {
         this.remove();
     });
 }
-
 function editCustomer(customerId) {
     fetch(`/api/customers/${customerId}`)
         .then(response => response.json())
@@ -823,6 +822,544 @@ async function deleteCustomer(customerId, companyName) {
             }
         } else {
             showNotification('เกิดข้อผิดพลาดในการลบข้อมูล', 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showNotification('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'danger');
+    }
+}
+
+// Contact modal functions - ปรับปรุงการจัดการเวลา
+async function showContactModal(customerId) {
+    try {
+        const [customerRes, contactsRes] = await Promise.all([
+            fetch(`/api/customers/${customerId}`),
+            fetch(`/api/customers/${customerId}/contacts`)
+        ]);
+
+        const customer = await customerRes.json();
+        const contacts = await contactsRes.json();
+
+        // สร้างค่าเริ่มต้นสำหรับเวลาปัจจุบัน (เวลาท้องถิ่น)
+        const now = new Date();
+        const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+
+        const contactModalHTML = `
+            <div class="modal fade" id="contactModal" tabindex="-1">
+                <div class="modal-dialog modal-xl">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">อัพเดตการติดต่อ - ${customer.company_name}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="row">
+                                <div class="col-md-5">
+                                    <h6>เพิ่มการติดต่อใหม่</h6>
+                                    <form id="contactForm">
+                                        <div class="mb-3">
+                                            <label class="form-label">วันที่ติดต่อ *</label>
+                                            <input type="datetime-local" class="form-control" name="contact_date" value="${localDateTime}" required>
+                                            <div class="form-text">เลือกวันและเวลาที่ติดต่อ</div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">ประเภทการติดต่อ *</label>
+                                            <select class="form-select" name="contact_type" required>
+                                                <option value="">เลือกประเภท</option>
+                                                <option value="เริ่มต้น">เริ่มต้น</option>
+                                                <option value="ติดตาม">ติดตาม</option>
+                                                <option value="นำเสนอ">นำเสนอ</option>
+                                                <option value="เจรจา">เจรจา</option>
+                                                <option value="ปิดการขาย">ปิดการขาย</option>
+                                            </select>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">สถานะ *</label>
+                                            <select class="form-select" name="contact_status" required>
+                                                <option value="">เลือกสถานะ</option>
+                                                <option value="สนใจ">สนใจ</option>
+                                                <option value="รอพิจารณา">รอพิจารณา</option>
+                                                <option value="นัดหมาย">นัดหมาย</option>
+                                                <option value="เจรจา">เจรจา</option>
+                                                <option value="สำเร็จ">สำเร็จ</option>
+                                                <option value="ไม่สำเร็จ">ไม่สำเร็จ</option>
+                                                <option value="รอติดตาม">รอติดตาม</option>
+                                            </select>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">การเสนอราคา *</label>
+                                            <select class="form-select" name="quotation_status" required>
+                                                <option value="ไม่เสนอราคา">ไม่เสนอราคา</option>
+                                                <option value="เสนอราคาแล้ว">เสนอราคาแล้ว</option>
+                                                <option value="รอตอบกลับ">รอตอบกลับ</option>
+                                                <option value="อนุมัติราคา">อนุมัติราคา</option>
+                                                <option value="ไม่อนุมัติราคา">ไม่อนุมัติราคา</option>
+                                                <option value="ต่อรองราคา">ต่อรองราคา</option>
+                                            </select>
+                                        </div>
+                                        <div class="mb-3" id="quotationAmountDiv" style="display: none;">
+                                            <label class="form-label">จำนวนเงินที่เสนอ (บาท)</label>
+                                            <input type="number" class="form-control" name="quotation_amount" step="0.01" placeholder="ระบุจำนวนเงิน">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">ช่องทางติดต่อ</label>
+                                            <select class="form-select" name="contact_method">
+                                                <option value="">เลือกช่องทาง</option>
+                                                <option value="โทรศัพท์">โทรศัพท์</option>
+                                                <option value="อีเมล">อีเมล</option>
+                                                <option value="LINE">LINE</option>
+                                                <option value="พบหน้า">พบหน้า</option>
+                                                <option value="วิดีโอคอล">วิดีโอคอล</option>
+                                            </select>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">ผู้ติดต่อ</label>
+                                            <input type="text" class="form-control" name="contact_person" placeholder="ชื่อผู้ติดต่อ">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">รายละเอียดการติดต่อ</label>
+                                            <textarea class="form-control" name="contact_details" rows="3" placeholder="บันทึกรายละเอียดการติดต่อ"></textarea>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">วันติดตามครั้งต่อไป</label>
+                                            <input type="date" class="form-control" name="next_follow_up">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">หมายเหตุ</label>
+                                            <textarea class="form-control" name="notes" rows="2" placeholder="หมายเหตุเพิ่มเติม"></textarea>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">อัพเดตสถานะลูกค้า</label>
+                                            <select class="form-select" name="customer_status_update">
+                                                <option value="">ไม่เปลี่ยน (${customer.customer_status || 'ไม่ระบุ'})</option>
+                                                <option value="Lead">Lead</option>
+                                                <option value="Potential">Potential</option>
+                                                <option value="Prospect">Prospect</option>
+                                                <option value="Pipeline">Pipeline</option>
+                                                <option value="PO">PO</option>
+                                                <option value="Close">Close</option>
+                                            </select>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">ผู้บันทึก</label>
+                                            <input type="text" class="form-control" name="created_by" placeholder="ชื่อผู้บันทึก" value="Admin">
+                                        </div>
+                                        <button type="submit" class="btn btn-primary w-100">บันทึกการติดต่อ</button>
+                                    </form>
+                                </div>
+                                <div class="col-md-7">
+                                    <h6>ประวัติการติดต่อทั้งหมด (${contacts.length} รายการ)</h6>
+                                    <div id="contactHistory" style="max-height: 500px; overflow-y: auto;">
+                                        ${generateContactHistory(contacts)}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ปิด</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', contactModalHTML);
+        const modal = new bootstrap.Modal(document.getElementById('contactModal'));
+        modal.show();
+
+        // เพิ่ม data attribute เพื่อให้ functions อื่นเข้าถึงได้
+        document.getElementById('contactModal').setAttribute('data-customer-id', customerId);
+
+        // เพิ่ม event listener สำหรับ quotation status
+        const quotationSelect = document.querySelector('select[name="quotation_status"]');
+        const quotationAmountDiv = document.getElementById('quotationAmountDiv');
+        
+        quotationSelect.addEventListener('change', function() {
+            if (this.value === 'เสนอราคาแล้ว' || this.value === 'รอตอบกลับ' || 
+                this.value === 'อนุมัติราคา' || this.value === 'ไม่อนุมัติราคา' || 
+                this.value === 'ต่อรองราคา') {
+                quotationAmountDiv.style.display = 'block';
+                document.querySelector('input[name="quotation_amount"]').required = true;
+            } else {
+                quotationAmountDiv.style.display = 'none';
+                document.querySelector('input[name="quotation_amount"]').required = false;
+            }
+        });
+
+        document.getElementById('contactForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            addContactLog(customerId);
+        });
+
+        document.getElementById('contactModal').addEventListener('hidden.bs.modal', function () {
+            this.remove();
+        });
+
+    } catch (error) {
+        console.error('Error:', error);
+        alert('เกิดข้อผิดพลาดในการโหลดข้อมูล');
+    }
+}
+
+function generateContactHistory(contacts) {
+    if (contacts.length === 0) {
+        return '<div class="text-center text-muted py-3">ยังไม่มีประวัติการติดต่อ</div>';
+    }
+
+    return contacts.map(contact => {
+        // แปลงเวลาจาก UTC กลับเป็นเวลาท้องถิ่นที่ user เลือกไว้
+        const contactDate = new Date(contact.contact_date);
+        // เนื่องจากเราเก็บเวลา UTC ที่แทนค่าเวลาท้องถิ่น เราต้องแปลงกลับ
+        const timezoneOffset = contactDate.getTimezoneOffset() * 60000;
+        const localDateTime = new Date(contactDate.getTime() + timezoneOffset);
+        
+        const displayDate = localDateTime.toLocaleString('th-TH', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        });
+
+        const quotationInfo = contact.quotation_status && contact.quotation_status !== 'ไม่เสนอราคา' 
+            ? `<div class="mt-1"><small><strong>การเสนอราคา:</strong> ${getQuotationStatusBadge(contact.quotation_status, contact.quotation_amount)}</small></div>`
+            : '';
+
+        return `
+            <div class="card mb-2">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h6 class="mb-1">${contact.contact_type || '-'}</h6>
+                        <div class="d-flex gap-1 align-items-center">
+                            <small class="text-muted me-2">${displayDate}</small>
+                            <button class="btn btn-sm btn-outline-primary" onclick="editContact(${contact.id})" title="แก้ไข">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteContact(${contact.id})" title="ลบ">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-sm-6">
+                            <small><strong>สถานะ:</strong> <span class="badge bg-secondary">${contact.contact_status || '-'}</span></small>
+                        </div>
+                        <div class="col-sm-6">
+                            <small><strong>ช่องทาง:</strong> ${contact.contact_method || '-'}</small>
+                        </div>
+                    </div>
+                    ${contact.contact_person ? `<div class="mt-1"><small><strong>ผู้ติดต่อ:</strong> ${contact.contact_person}</small></div>` : ''}
+                    ${contact.contact_details ? `<div class="mt-1"><small><strong>รายละเอียด:</strong> ${contact.contact_details}</small></div>` : ''}
+                    ${quotationInfo}
+                    ${contact.next_follow_up ? `<div class="mt-1"><small><strong>ติดตามครั้งต่อไป:</strong> ${new Date(contact.next_follow_up).toLocaleDateString('th-TH')}</small></div>` : ''}
+                    ${contact.notes ? `<div class="mt-1"><small><strong>หมายเหตุ:</strong> ${contact.notes}</small></div>` : ''}
+                    <div class="mt-1"><small class="text-muted">บันทึกโดย: ${contact.created_by || 'ไม่ระบุ'}</small></div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// แก้ไขฟังก์ชันบันทึกการติดต่อ - แก้ปัญหาหลัก
+async function addContactLog(customerId) {
+    const form = document.getElementById('contactForm');
+    const formData = new FormData(form);
+
+    // รับค่าเวลาที่ผู้ใช้เลือก และจัดการ timezone อย่างถูกต้อง
+    const contactDateInput = formData.get('contact_date');
+    
+    // สร้าง Date object จากค่าที่ user เลือก (ในรูปแบบ YYYY-MM-DDTHH:MM)
+    // และเก็บเป็น timestamp ที่แทนเวลาท้องถิ่น
+    let contactDateTime;
+    if (contactDateInput) {
+        // แปลง datetime-local เป็น timestamp แบบ local time
+        const localDate = new Date(contactDateInput);
+        // ปรับ timezone offset เพื่อให้ได้เวลา UTC ที่แทนค่าเวลาท้องถิ่นที่ user เลือก
+        const timezoneOffset = localDate.getTimezoneOffset() * 60000;
+        contactDateTime = new Date(localDate.getTime() - timezoneOffset).toISOString();
+    } else {
+        const now = new Date();
+        const timezoneOffset = now.getTimezoneOffset() * 60000;
+        contactDateTime = new Date(now.getTime() - timezoneOffset).toISOString();
+    }
+    
+    const contactData = {
+        contact_type: formData.get('contact_type'),
+        contact_status: formData.get('contact_status'),
+        contact_method: formData.get('contact_method'),
+        contact_person: formData.get('contact_person'),
+        contact_details: formData.get('contact_details'),
+        next_follow_up: formData.get('next_follow_up') || null,
+        notes: formData.get('notes'),
+        created_by: formData.get('created_by'),
+        customer_status_update: formData.get('customer_status_update') || null,
+        contact_date: contactDateTime,
+        quotation_status: formData.get('quotation_status'),
+        quotation_amount: formData.get('quotation_amount') ? parseFloat(formData.get('quotation_amount')) : null
+    };
+
+    // Show loading state
+    const submitButton = form.querySelector('button[type="submit"]');
+    const originalText = submitButton.innerHTML;
+    submitButton.disabled = true;
+    submitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>กำลังบันทึก...';
+
+    try {
+        const response = await fetch(`/api/customers/${customerId}/contacts`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(contactData)
+        });
+
+        if (response.ok) {
+            showNotification('บันทึกการติดต่อเรียบร้อยแล้ว', 'success');
+            document.getElementById('contactModal').querySelector('[data-bs-dismiss="modal"]').click();
+            // ✅ สำคัญ: Refresh customer list เพื่อให้แสดงสถานะการเสนอราคาใหม่
+            await loadCustomers();
+        } else {
+            const errorData = await response.json();
+            showNotification('เกิดข้อผิดพลาดในการบันทึกข้อมูล: ' + (errorData.error || 'ไม่ทราบสาเหตุ'), 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showNotification('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'danger');
+    } finally {
+        submitButton.disabled = false;
+        submitButton.innerHTML = originalText;
+    }
+}
+// ฟังก์ชันแก้ไขการติดต่อ
+async function editContact(contactId) {
+    try {
+        const response = await fetch(`/api/contacts/${contactId}`);
+        const contact = await response.json();
+
+        if (response.ok) {
+            showEditContactModal(contact);
+        } else {
+            showNotification('ไม่สามารถโหลดข้อมูลการติดต่อได้', 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showNotification('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'danger');
+    }
+}
+
+// แสดง Modal แก้ไขการติดต่อ
+function showEditContactModal(contact) {
+    // แปลงเวลาสำหรับ datetime-local input
+    const contactDate = new Date(contact.contact_date);
+    const timezoneOffset = contactDate.getTimezoneOffset() * 60000;
+    const localDateTime = new Date(contactDate.getTime() + timezoneOffset);
+    const localDateTimeString = localDateTime.toISOString().slice(0, 16);
+
+    const editContactHTML = `
+        <div class="modal fade" id="editContactModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">แก้ไขการติดต่อ</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="editContactForm">
+                            <div class="mb-3">
+                                <label class="form-label">วันที่ติดต่อ *</label>
+                                <input type="datetime-local" class="form-control" name="contact_date" value="${localDateTimeString}" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">ประเภทการติดต่อ *</label>
+                                <select class="form-select" name="contact_type" required>
+                                    <option value="">เลือกประเภท</option>
+                                    <option value="เริ่มต้น" ${contact.contact_type === 'เริ่มต้น' ? 'selected' : ''}>เริ่มต้น</option>
+                                    <option value="ติดตาม" ${contact.contact_type === 'ติดตาม' ? 'selected' : ''}>ติดตาม</option>
+                                    <option value="นำเสนอ" ${contact.contact_type === 'นำเสนอ' ? 'selected' : ''}>นำเสนอ</option>
+                                    <option value="เจรจา" ${contact.contact_type === 'เจรจา' ? 'selected' : ''}>เจรจา</option>
+                                    <option value="ปิดการขาย" ${contact.contact_type === 'ปิดการขาย' ? 'selected' : ''}>ปิดการขาย</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">สถานะ *</label>
+                                <select class="form-select" name="contact_status" required>
+                                    <option value="">เลือกสถานะ</option>
+                                    <option value="สนใจ" ${contact.contact_status === 'สนใจ' ? 'selected' : ''}>สนใจ</option>
+                                    <option value="รอพิจารณา" ${contact.contact_status === 'รอพิจารณา' ? 'selected' : ''}>รอพิจารณา</option>
+                                    <option value="นัดหมาย" ${contact.contact_status === 'นัดหมาย' ? 'selected' : ''}>นัดหมาย</option>
+                                    <option value="เจรจา" ${contact.contact_status === 'เจรจา' ? 'selected' : ''}>เจรจา</option>
+                                    <option value="สำเร็จ" ${contact.contact_status === 'สำเร็จ' ? 'selected' : ''}>สำเร็จ</option>
+                                    <option value="ไม่สำเร็จ" ${contact.contact_status === 'ไม่สำเร็จ' ? 'selected' : ''}>ไม่สำเร็จ</option>
+                                    <option value="รอติดตาม" ${contact.contact_status === 'รอติดตาม' ? 'selected' : ''}>รอติดตาม</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">การเสนอราคา *</label>
+                                <select class="form-select" name="quotation_status" id="editQuotationStatus" required>
+                                    <option value="ไม่เสนอราคา" ${(!contact.quotation_status || contact.quotation_status === 'ไม่เสนอราคา') ? 'selected' : ''}>ไม่เสนอราคา</option>
+                                    <option value="เสนอราคาแล้ว" ${contact.quotation_status === 'เสนอราคาแล้ว' ? 'selected' : ''}>เสนอราคาแล้ว</option>
+                                    <option value="รอตอบกลับ" ${contact.quotation_status === 'รอตอบกลับ' ? 'selected' : ''}>รอตอบกลับ</option>
+                                    <option value="อนุมัติราคา" ${contact.quotation_status === 'อนุมัติราคา' ? 'selected' : ''}>อนุมัติราคา</option>
+                                    <option value="ไม่อนุมัติราคา" ${contact.quotation_status === 'ไม่อนุมัติราคา' ? 'selected' : ''}>ไม่อนุมัติราคา</option>
+                                    <option value="ต่อรองราคา" ${contact.quotation_status === 'ต่อรองราคา' ? 'selected' : ''}>ต่อรองราคา</option>
+                                </select>
+                            </div>
+                            <div class="mb-3" id="editQuotationAmountDiv" style="display: ${(contact.quotation_status && contact.quotation_status !== 'ไม่เสนอราคา') ? 'block' : 'none'};">
+                                <label class="form-label">จำนวนเงินที่เสนอ (บาท)</label>
+                                <input type="number" class="form-control" name="quotation_amount" step="0.01" value="${contact.quotation_amount || ''}" placeholder="ระบุจำนวนเงิน">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">ช่องทางติดต่อ</label>
+                                <select class="form-select" name="contact_method">
+                                    <option value="">เลือกช่องทาง</option>
+                                    <option value="โทรศัพท์" ${contact.contact_method === 'โทรศัพท์' ? 'selected' : ''}>โทรศัพท์</option>
+                                    <option value="อีเมล" ${contact.contact_method === 'อีเมล' ? 'selected' : ''}>อีเมล</option>
+                                    <option value="LINE" ${contact.contact_method === 'LINE' ? 'selected' : ''}>LINE</option>
+                                    <option value="พบหน้า" ${contact.contact_method === 'พบหน้า' ? 'selected' : ''}>พบหน้า</option>
+                                    <option value="วิดีโอคอล" ${contact.contact_method === 'วิดีโอคอล' ? 'selected' : ''}>วิดีโอคอล</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">ผู้ติดต่อ</label>
+                                <input type="text" class="form-control" name="contact_person" value="${contact.contact_person || ''}" placeholder="ชื่อผู้ติดต่อ">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">รายละเอียดการติดต่อ</label>
+                                <textarea class="form-control" name="contact_details" rows="3" placeholder="บันทึกรายละเอียดการติดต่อ">${contact.contact_details || ''}</textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">วันติดตามครั้งต่อไป</label>
+                                <input type="date" class="form-control" name="next_follow_up" value="${contact.next_follow_up ? contact.next_follow_up.split('T')[0] : ''}">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">หมายเหตุ</label>
+                                <textarea class="form-control" name="notes" rows="2" placeholder="หมายเหตุเพิ่มเติม">${contact.notes || ''}</textarea>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+                        <button type="button" class="btn btn-primary" onclick="updateContact(${contact.id})">บันทึกการแก้ไข</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', editContactHTML);
+    const modal = new bootstrap.Modal(document.getElementById('editContactModal'));
+    modal.show();
+
+    // เพิ่ม event listener สำหรับ edit quotation status
+    const editQuotationSelect = document.getElementById('editQuotationStatus');
+    const editQuotationAmountDiv = document.getElementById('editQuotationAmountDiv');
+    
+    editQuotationSelect.addEventListener('change', function() {
+        if (this.value === 'เสนอราคาแล้ว' || this.value === 'รอตอบกลับ' || 
+            this.value === 'อนุมัติราคา' || this.value === 'ไม่อนุมัติราคา' || 
+            this.value === 'ต่อรองราคา') {
+            editQuotationAmountDiv.style.display = 'block';
+        } else {
+            editQuotationAmountDiv.style.display = 'none';
+        }
+    });
+
+    document.getElementById('editContactModal').addEventListener('hidden.bs.modal', function () {
+        this.remove();
+    });
+}
+
+// อัพเดตการติดต่อ
+async function updateContact(contactId) {
+    const form = document.getElementById('editContactForm');
+    const formData = new FormData(form);
+
+    // จัดการเวลาเหมือนกับการเพิ่มใหม่
+    const contactDateInput = formData.get('contact_date');
+    let contactDateTime = null;
+    if (contactDateInput) {
+        const localDate = new Date(contactDateInput);
+        const timezoneOffset = localDate.getTimezoneOffset() * 60000;
+        contactDateTime = new Date(localDate.getTime() - timezoneOffset).toISOString();
+    }
+
+    const contactData = {
+        contact_type: formData.get('contact_type'),
+        contact_status: formData.get('contact_status'),
+        contact_method: formData.get('contact_method'),
+        contact_person: formData.get('contact_person'),
+        contact_details: formData.get('contact_details'),
+        next_follow_up: formData.get('next_follow_up') || null,
+        notes: formData.get('notes'),
+        contact_date: contactDateTime,
+        quotation_status: formData.get('quotation_status'),
+        quotation_amount: formData.get('quotation_amount') ? parseFloat(formData.get('quotation_amount')) : null
+    };
+
+    try {
+        const response = await fetch(`/api/contacts/${contactId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(contactData)
+        });
+
+        if (response.ok) {
+            showNotification('แก้ไขการติดต่อเรียบร้อยแล้ว', 'success');
+            document.getElementById('editContactModal').querySelector('[data-bs-dismiss="modal"]').click();
+            // รีเฟรช contact modal
+            const contactModal = document.getElementById('contactModal');
+            if (contactModal) {
+                const customerId = contactModal.getAttribute('data-customer-id');
+                if (customerId) {
+                    contactModal.querySelector('[data-bs-dismiss="modal"]').click();
+                    setTimeout(() => {
+                        showContactModal(customerId);
+                        // รีเฟรชรายการลูกค้าเพื่ออัพเดตสถานะการเสนอราคา
+                        loadCustomers();
+                    }, 300);
+                }
+            }
+        } else {
+            const errorData = await response.json();
+            showNotification('เกิดข้อผิดพลาดในการแก้ไข: ' + (errorData.error || 'ไม่ทราบสาเหตุ'), 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showNotification('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'danger');
+    }
+}
+
+// ลบการติดต่อ
+async function deleteContact(contactId) {
+    if (!confirm('คุณต้องการลบการติดต่อนี้หรือไม่?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/contacts/${contactId}`, {
+            method: 'DELETE'
+        });
+
+        if (response.ok) {
+            showNotification('ลบการติดต่อเรียบร้อยแล้ว', 'success');
+            // รีเฟรช contact modal
+            const contactModal = document.getElementById('contactModal');
+            if (contactModal) {
+                const customerId = contactModal.getAttribute('data-customer-id');
+                if (customerId) {
+                    contactModal.querySelector('[data-bs-dismiss="modal"]').click();
+                    setTimeout(() => {
+                        showContactModal(customerId);
+                        // รีเฟรชรายการลูกค้าเพื่ออัพเดตสถานะการเสนอราคา
+                        loadCustomers();
+                    }, 300);
+                }
+            }
+        } else {
+            showNotification('เกิดข้อผิดพลาดในการลบ', 'danger');
         }
     } catch (error) {
         console.error('Error:', error);
@@ -952,168 +1489,23 @@ function showNotification(message, type = 'info', duration = 3000) {
     }, duration);
 }
 
-function showSettings() {
-    const settingsHTML = `
-        <div class="modal fade" id="settingsModal" tabindex="-1">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">การตั้งค่าระบบ</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <label class="form-label">จำนวนรายการต่อหน้า</label>
-                            <select class="form-select" id="itemsPerPageSetting">
-                                <option value="5" ${itemsPerPage === 5 ? 'selected' : ''}>5</option>
-                                <option value="10" ${itemsPerPage === 10 ? 'selected' : ''}>10</option>
-                                <option value="25" ${itemsPerPage === 25 ? 'selected' : ''}>25</option>
-                                <option value="50" ${itemsPerPage === 50 ? 'selected' : ''}>50</option>
-                                <option value="100" ${itemsPerPage === 100 ? 'selected' : ''}>100</option>
-                            </select>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="autoRefreshSetting" ${autoRefreshInterval ? 'checked' : ''}>
-                                <label class="form-check-label" for="autoRefreshSetting">
-                                    เปิดการอัพเดตอัตโนมัติ (ทุก 5 นาที)
-                                </label>
-                            </div>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label class="form-label">ข้อมูลระบบ</label>
-                            <div class="card">
-                                <div class="card-body">
-                                    <p class="card-text mb-1"><strong>จำนวนลูกค้าทั้งหมด:</strong> ${allCustomers.length} ราย</p>
-                                    <p class="card-text mb-1"><strong>จำนวนที่แสดง:</strong> ${filteredCustomers.length} ราย</p>
-                                    <p class="card-text mb-1"><strong>อัพเดตล่าสุด:</strong> ${lastUpdateTime ? new Date(lastUpdateTime).toLocaleString('th-TH') : 'ไม่ทราบ'}</p>
-                                    <p class="card-text mb-0"><strong>เวอร์ชั่น:</strong> 1.2.0</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">คีย์ลัด</label>
-                            <div class="card">
-                                <div class="card-body small">
-                                    <p class="mb-1"><kbd>Ctrl + N</kbd> เพิ่มลูกค้าใหม่</p>
-                                    <p class="mb-1"><kbd>Ctrl + F</kbd> ค้นหา</p>
-                                    <p class="mb-1"><kbd>Ctrl + T</kbd> งานที่ต้องทำ</p>
-                                    <p class="mb-0"><kbd>Esc</kbd> ปิด Modal</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ปิด</button>
-                        <button type="button" class="btn btn-primary" onclick="saveSettings()">บันทึก</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-
-    document.body.insertAdjacentHTML('beforeend', settingsHTML);
-    const modal = new bootstrap.Modal(document.getElementById('settingsModal'));
-    modal.show();
-
-    document.getElementById('settingsModal').addEventListener('hidden.bs.modal', function () {
-        this.remove();
-    });
-}
-
-function saveSettings() {
-    const newItemsPerPage = parseInt(document.getElementById('itemsPerPageSetting').value);
-    const autoRefreshEnabled = document.getElementById('autoRefreshSetting').checked;
+function getSalesPersonBadge(salesPerson) {
+    if (!salesPerson) return '<span class="badge bg-secondary">ไม่ระบุ</span>';
     
-    if (newItemsPerPage !== itemsPerPage) {
-        itemsPerPage = newItemsPerPage;
-        currentPage = 1;
-        displayPaginatedCustomers();
-    }
-    
-    if (autoRefreshEnabled && !autoRefreshInterval) {
-        initializeAutoRefresh();
-    } else if (!autoRefreshEnabled && autoRefreshInterval) {
-        clearInterval(autoRefreshInterval);
-        autoRefreshInterval = null;
-    }
-    
-    // บันทึกการตั้งค่าใน localStorage
-    localStorage.setItem('crmSettings', JSON.stringify({
-        itemsPerPage: itemsPerPage,
-        autoRefresh: autoRefreshEnabled
-    }));
-    
-    showNotification('บันทึกการตั้งค่าเรียบร้อยแล้ว', 'success');
-    document.getElementById('settingsModal').querySelector('[data-bs-dismiss="modal"]').click();
-}
-
-function loadSettings() {
-    try {
-        const settings = JSON.parse(localStorage.getItem('crmSettings'));
-        if (settings) {
-            itemsPerPage = settings.itemsPerPage || 10;
-            if (!settings.autoRefresh) {
-                clearInterval(autoRefreshInterval);
-                autoRefreshInterval = null;
-            }
-        }
-    } catch (error) {
-        console.log('No saved settings found');
-    }
-}
-
-function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
+    const colors = {
+        'Aui': 'bg-primary',
+        'Ink': 'bg-success', 
+        'Puri': 'bg-info'
     };
+    
+    return `<span class="badge ${colors[salesPerson] || 'bg-secondary'}">${salesPerson}</span>`;
 }
 
-function validateForm(formData) {
-    const errors = [];
-    
-    if (!formData.get('company_name')?.trim()) {
-        errors.push('ชื่อบริษัทเป็นข้อมูลที่จำเป็น');
-    }
-    
-    if (!formData.get('sales_person')?.trim()) {
-        errors.push('Sales Person เป็นข้อมูลที่จำเป็น');
-    }
-    
-    if (!formData.get('customer_status')?.trim()) {
-        errors.push('สถานะลูกค้าเป็นข้อมูลที่จำเป็น');
-    }
-    
-    const email = formData.get('email');
-    if (email && !isValidEmail(email)) {
-        errors.push('รูปแบบอีเมลไม่ถูกต้อง');
-    }
-    
-    const phone = formData.get('phone_number');
-    if (phone && !isValidPhone(phone)) {
-        errors.push('รูปแบบเบอร์โทรศัพท์ไม่ถูกต้อง');
-    }
-    
-    return errors;
-}
-
-function isValidEmail(email) {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-}
-
-function isValidPhone(phone) {
-    const phoneRegex = /^[\d\-\+\(\)\s]+$/;
-    return phoneRegex.test(phone) && phone.replace(/\D/g, '').length >= 9;
+function formatCurrency(amount) {
+    return new Intl.NumberFormat('th-TH', { 
+        style: 'currency', 
+        currency: 'THB' 
+    }).format(amount);
 }
 
 function convertToCSV(data) {
@@ -1179,18 +1571,367 @@ function clearFilters() {
     updateSearchStatus();
 }
 
-function getSalesPersonBadge(salesPerson) {
-    if (!salesPerson) return '<span class="badge bg-secondary">ไม่ระบุ</span>';
+function quickFilter(filterType) {
+    // ล้างตัวกรองเดิม
+    clearFilters();
     
-    const colors = {
-        'Aui': 'bg-primary',
-        'Ink': 'bg-success', 
-        'Puri': 'bg-info'
-    };
+    const today = new Date();
+    const sevenDaysAgo = new Date(today.getTime() - (7 * 24 * 60 * 60 * 1000));
     
-    return `<span class="badge ${colors[salesPerson] || 'bg-secondary'}">${salesPerson}</span>`;
+    switch(filterType) {
+        case 'high_value':
+            // Filter customers with contract value > 100,000
+            filteredCustomers = allCustomers.filter(customer => 
+                customer.contract_value && customer.contract_value > 100000
+            );
+            break;
+            
+        case 'recent':
+            // Filter customers created in last 7 days
+            filteredCustomers = allCustomers.filter(customer => 
+                new Date(customer.created_at) >= sevenDaysAgo
+            );
+            break;
+            
+        case 'no_contact':
+            // Filter customers with no contract value
+            filteredCustomers = allCustomers.filter(customer => 
+                !customer.contract_value || customer.contract_value === 0
+            );
+            break;
+            
+        case 'online_leads':
+            document.getElementById('leadSourceFilter').value = 'Online';
+            document.getElementById('leadSourceFilterMobile').value = 'Online';
+            filterAndSort();
+            return;
+    }
+    
+    sortCustomers();
+    displayPaginatedCustomers();
 }
 
+// Advanced search functionality
+let advancedSearchCriteria = {};
+
+function showAdvancedSearch() {
+    const advancedSearchHTML = `
+        <div class="modal fade" id="advancedSearchModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">ค้นหาขั้นสูง</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="advancedSearchForm">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">ชื่อบริษัท</label>
+                                    <input type="text" class="form-control" name="company_name" placeholder="ค้นหาชื่อบริษัท">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">อีเมล</label>
+                                    <input type="text" class="form-control" name="email" placeholder="ค้นหาอีเมล">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">เบอร์โทรศัพท์</label>
+                                    <input type="text" class="form-control" name="phone_number" placeholder="ค้นหาเบอร์โทร">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">ชื่อผู้ติดต่อ</label>
+                                    <input type="text" class="form-control" name="contact_names" placeholder="ค้นหาชื่อผู้ติดต่อ">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">ประเภทธุรกิจ</label>
+                                    <input type="text" class="form-control" name="business_type" placeholder="ค้นหาประเภทธุรกิจ">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">สถานะลูกค้า</label>
+                                    <select class="form-select" name="customer_status">
+                                        <option value="">เลือกสถานะ</option>
+                                        <option value="Lead">Lead</option>
+                                        <option value="Potential">Potential</option>
+                                        <option value="Prospect">Prospect</option>
+                                        <option value="Pipeline">Pipeline</option>
+                                        <option value="PO">PO</option>
+                                        <option value="Close">Close</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">งบประมาณ (ตั้งแต่)</label>
+                                    <input type="number" class="form-control" name="budget_from" placeholder="0">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">งบประมาณ (ถึง)</label>
+                                    <input type="number" class="form-control" name="budget_to" placeholder="9999999">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Contract Value (ตั้งแต่)</label>
+                                    <input type="number" class="form-control" name="contract_value_from" placeholder="0">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Contract Value (ถึง)</label>
+                                    <input type="number" class="form-control" name="contract_value_to" placeholder="9999999">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">วันที่สร้าง (ตั้งแต่)</label>
+                                    <input type="date" class="form-control" name="created_from">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">วันที่สร้าง (ถึง)</label>
+                                    <input type="date" class="form-control" name="created_to">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">ที่ตั้ง</label>
+                                    <input type="text" class="form-control" name="location" placeholder="ค้นหาที่ตั้ง">
+                                </div>
+                                <div class="col-md-12 mb-3">
+                                    <label class="form-label">Pain Points</label>
+                                    <input type="text" class="form-control" name="pain_points" placeholder="ค้นหาปัญหาที่ต้องการแก้ไข">
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" onclick="clearAdvancedSearch()">ล้างทั้งหมด</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+                        <button type="button" class="btn btn-primary" onclick="executeAdvancedSearch()">ค้นหา</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', advancedSearchHTML);
+    const modal = new bootstrap.Modal(document.getElementById('advancedSearchModal'));
+    modal.show();
+
+    document.getElementById('advancedSearchModal').addEventListener('hidden.bs.modal', function () {
+        this.remove();
+    });
+}
+
+function executeAdvancedSearch() {
+    const form = document.getElementById('advancedSearchForm');
+    const formData = new FormData(form);
+    
+    advancedSearchCriteria = {};
+    
+    // เก็บเงื่อนไขการค้นหา
+    for (let [key, value] of formData.entries()) {
+        if (value.trim()) {
+            advancedSearchCriteria[key] = value.trim();
+        }
+    }
+    
+    currentPage = 1;
+    filterAndSort();
+    
+    document.getElementById('advancedSearchModal').querySelector('[data-bs-dismiss="modal"]').click();
+    
+    // แสดงสถานะการค้นหาขั้นสูง
+    updateSearchStatus();
+}
+
+function clearAdvancedSearch() {
+    document.getElementById('advancedSearchForm').reset();
+    advancedSearchCriteria = {};
+    updateSearchStatus();
+}
+
+function updateSearchStatus() {
+    const hasAdvancedSearch = Object.keys(advancedSearchCriteria).length > 0;
+    const statusElement = document.getElementById('advancedSearchStatus');
+    
+    if (statusElement) {
+        statusElement.remove();
+    }
+    
+    if (hasAdvancedSearch) {
+        const searchCount = Object.keys(advancedSearchCriteria).length;
+        const statusHTML = `
+            <div id="advancedSearchStatus" class="alert alert-info alert-dismissible fade show" role="alert">
+                <i class="bi bi-info-circle"></i> กำลังใช้การค้นหาขั้นสูง (${searchCount} เงื่อนไข)
+                <button type="button" class="btn-close" onclick="clearAllAdvancedSearch()"></button>
+            </div>
+        `;
+        document.querySelector('#customersList .card-body').insertAdjacentHTML('afterbegin', statusHTML);
+    }
+}
+
+function clearAllAdvancedSearch() {
+    advancedSearchCriteria = {};
+    currentPage = 1;
+    filterAndSort();
+    updateSearchStatus();
+}
+
+function validateForm(formData) {
+    const errors = [];
+    
+    if (!formData.get('company_name')?.trim()) {
+        errors.push('ชื่อบริษัทเป็นข้อมูลที่จำเป็น');
+    }
+    
+    if (!formData.get('sales_person')?.trim()) {
+        errors.push('Sales Person เป็นข้อมูลที่จำเป็น');
+    }
+    
+    if (!formData.get('customer_status')?.trim()) {
+        errors.push('สถานะลูกค้าเป็นข้อมูลที่จำเป็น');
+    }
+    
+    const email = formData.get('email');
+    if (email && !isValidEmail(email)) {
+        errors.push('รูปแบบอีเมลไม่ถูกต้อง');
+    }
+    
+    const phone = formData.get('phone_number');
+    if (phone && !isValidPhone(phone)) {
+        errors.push('รูปแบบเบอร์โทรศัพท์ไม่ถูกต้อง');
+    }
+    
+    return errors;
+}
+
+function isValidEmail(email) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+}
+
+function isValidPhone(phone) {
+    const phoneRegex = /^[\d\-\+\(\)\s]+$/;
+    return phoneRegex.test(phone) && phone.replace(/\D/g, '').length >= 9;
+}
+
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+function loadSettings() {
+    try {
+        const settings = JSON.parse(localStorage.getItem('crmSettings'));
+        if (settings) {
+            itemsPerPage = settings.itemsPerPage || 10;
+            if (!settings.autoRefresh) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+            }
+        }
+    } catch (error) {
+        console.log('No saved settings found');
+    }
+}
+
+function showSettings() {
+    const settingsHTML = `
+        <div class="modal fade" id="settingsModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">การตั้งค่าระบบ</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">จำนวนรายการต่อหน้า</label>
+                            <select class="form-select" id="itemsPerPageSetting">
+                                <option value="5" ${itemsPerPage === 5 ? 'selected' : ''}>5</option>
+                                <option value="10" ${itemsPerPage === 10 ? 'selected' : ''}>10</option>
+                                <option value="25" ${itemsPerPage === 25 ? 'selected' : ''}>25</option>
+                                <option value="50" ${itemsPerPage === 50 ? 'selected' : ''}>50</option>
+                                <option value="100" ${itemsPerPage === 100 ? 'selected' : ''}>100</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="autoRefreshSetting" ${autoRefreshInterval ? 'checked' : ''}>
+                                <label class="form-check-label" for="autoRefreshSetting">
+                                    เปิดการอัพเดตอัตโนมัติ (ทุก 5 นาที)
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">ข้อมูลระบบ</label>
+                            <div class="card">
+                                <div class="card-body">
+                                    <p class="card-text mb-1"><strong>จำนวนลูกค้าทั้งหมด:</strong> ${allCustomers.length} ราย</p>
+                                    <p class="card-text mb-1"><strong>จำนวนที่แสดง:</strong> ${filteredCustomers.length} ราย</p>
+                                    <p class="card-text mb-1"><strong>อัพเดตล่าสุด:</strong> ${lastUpdateTime ? new Date(lastUpdateTime).toLocaleString('th-TH') : 'ไม่ทราบ'}</p>
+                                    <p class="card-text mb-0"><strong>เวอร์ชั่น:</strong> 1.2.1</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">คีย์ลัด</label>
+                            <div class="card">
+                                <div class="card-body small">
+                                    <p class="mb-1"><kbd>Ctrl + N</kbd> เพิ่มลูกค้าใหม่</p>
+                                    <p class="mb-1"><kbd>Ctrl + F</kbd> ค้นหา</p>
+                                    <p class="mb-1"><kbd>Ctrl + T</kbd> งานที่ต้องทำ</p>
+                                    <p class="mb-0"><kbd>Esc</kbd> ปิด Modal</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ปิด</button>
+                        <button type="button" class="btn btn-primary" onclick="saveSettings()">บันทึก</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', settingsHTML);
+    const modal = new bootstrap.Modal(document.getElementById('settingsModal'));
+    modal.show();
+
+    document.getElementById('settingsModal').addEventListener('hidden.bs.modal', function () {
+        this.remove();
+    });
+}
+
+function saveSettings() {
+    const newItemsPerPage = parseInt(document.getElementById('itemsPerPageSetting').value);
+    const autoRefreshEnabled = document.getElementById('autoRefreshSetting').checked;
+    
+    if (newItemsPerPage !== itemsPerPage) {
+        itemsPerPage = newItemsPerPage;
+        currentPage = 1;
+        displayPaginatedCustomers();
+    }
+    
+    if (autoRefreshEnabled && !autoRefreshInterval) {
+        initializeAutoRefresh();
+    } else if (!autoRefreshEnabled && autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+        autoRefreshInterval = null;
+    }
+    
+    // บันทึกการตั้งค่าใน localStorage
+    localStorage.setItem('crmSettings', JSON.stringify({
+        itemsPerPage: itemsPerPage,
+        autoRefresh: autoRefreshEnabled
+    }));
+    
+    showNotification('บันทึกการตั้งค่าเรียบร้อยแล้ว', 'success');
+    document.getElementById('settingsModal').querySelector('[data-bs-dismiss="modal"]').click();
+}
+
+// Task Management Functions
 async function showTasksView() {
     document.getElementById('addCustomerForm').style.display = 'none';
     document.getElementById('customersList').style.display = 'none';
@@ -1204,7 +1945,6 @@ async function showTasksView() {
     document.getElementById('taskAssigneeFilter').addEventListener('change', loadAllTasks);
 }
 
-// Task management functions
 async function loadTasksDashboard() {
     try {
         const response = await fetch('/api/tasks/dashboard');
@@ -1503,748 +2243,6 @@ function getStatusText(status) {
         'Cancelled': 'ยกเลิก'
     };
     return texts[status] || status;
-}
-
-function quickFilter(filterType) {
-    // ล้างตัวกรองเดิม
-    clearFilters();
-    
-    const today = new Date();
-    const sevenDaysAgo = new Date(today.getTime() - (7 * 24 * 60 * 60 * 1000));
-    
-    switch(filterType) {
-        case 'high_value':
-            // Filter customers with contract value > 100,000
-            filteredCustomers = allCustomers.filter(customer => 
-                customer.contract_value && customer.contract_value > 100000
-            );
-            break;
-            
-        case 'recent':
-            // Filter customers created in last 7 days
-            filteredCustomers = allCustomers.filter(customer => 
-                new Date(customer.created_at) >= sevenDaysAgo
-            );
-            break;
-            
-        case 'no_contact':
-            // Filter customers with no contract value
-            filteredCustomers = allCustomers.filter(customer => 
-                !customer.contract_value || customer.contract_value === 0
-            );
-            break;
-            
-        case 'online_leads':
-            document.getElementById('leadSourceFilter').value = 'Online';
-            document.getElementById('leadSourceFilterMobile').value = 'Online';
-            filterAndSort();
-            return;
-    }
-    
-    sortCustomers();
-    displayPaginatedCustomers();
-}
-
-function formatCurrency(amount) {
-    return new Intl.NumberFormat('th-TH', { 
-        style: 'currency', 
-        currency: 'THB' 
-    }).format(amount);
-}
-
-// Advanced search functionality
-let advancedSearchCriteria = {};
-
-function showAdvancedSearch() {
-    const advancedSearchHTML = `
-        <div class="modal fade" id="advancedSearchModal" tabindex="-1">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">ค้นหาขั้นสูง</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <form id="advancedSearchForm">
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">ชื่อบริษัท</label>
-                                    <input type="text" class="form-control" name="company_name" placeholder="ค้นหาชื่อบริษัท">
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">อีเมล</label>
-                                    <input type="text" class="form-control" name="email" placeholder="ค้นหาอีเมล">
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">เบอร์โทรศัพท์</label>
-                                    <input type="text" class="form-control" name="phone_number" placeholder="ค้นหาเบอร์โทร">
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">ชื่อผู้ติดต่อ</label>
-                                    <input type="text" class="form-control" name="contact_names" placeholder="ค้นหาชื่อผู้ติดต่อ">
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">ประเภทธุรกิจ</label>
-                                    <input type="text" class="form-control" name="business_type" placeholder="ค้นหาประเภทธุรกิจ">
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">สถานะลูกค้า</label>
-                                    <select class="form-select" name="customer_status">
-                                        <option value="">เลือกสถานะ</option>
-                                        <option value="Lead">Lead</option>
-                                        <option value="Potential">Potential</option>
-                                        <option value="Prospect">Prospect</option>
-                                        <option value="Pipeline">Pipeline</option>
-                                        <option value="PO">PO</option>
-                                        <option value="Close">Close</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">งบประมาณ (ตั้งแต่)</label>
-                                    <input type="number" class="form-control" name="budget_from" placeholder="0">
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">งบประมาณ (ถึง)</label>
-                                    <input type="number" class="form-control" name="budget_to" placeholder="9999999">
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">Contract Value (ตั้งแต่)</label>
-                                    <input type="number" class="form-control" name="contract_value_from" placeholder="0">
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">Contract Value (ถึง)</label>
-                                    <input type="number" class="form-control" name="contract_value_to" placeholder="9999999">
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">วันที่สร้าง (ตั้งแต่)</label>
-                                    <input type="date" class="form-control" name="created_from">
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">วันที่สร้าง (ถึง)</label>
-                                    <input type="date" class="form-control" name="created_to">
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">ที่ตั้ง</label>
-                                    <input type="text" class="form-control" name="location" placeholder="ค้นหาที่ตั้ง">
-                                </div>
-                                <div class="col-md-12 mb-3">
-                                    <label class="form-label">Pain Points</label>
-                                    <input type="text" class="form-control" name="pain_points" placeholder="ค้นหาปัญหาที่ต้องการแก้ไข">
-                                </div>
-                            </div>
-                        </form>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" onclick="clearAdvancedSearch()">ล้างทั้งหมด</button>
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
-                        <button type="button" class="btn btn-primary" onclick="executeAdvancedSearch()">ค้นหา</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-
-    document.body.insertAdjacentHTML('beforeend', advancedSearchHTML);
-    const modal = new bootstrap.Modal(document.getElementById('advancedSearchModal'));
-    modal.show();
-
-    document.getElementById('advancedSearchModal').addEventListener('hidden.bs.modal', function () {
-        this.remove();
-    });
-}
-
-function executeAdvancedSearch() {
-    const form = document.getElementById('advancedSearchForm');
-    const formData = new FormData(form);
-    
-    advancedSearchCriteria = {};
-    
-    // เก็บเงตข์การค้นหา
-    for (let [key, value] of formData.entries()) {
-        if (value.trim()) {
-            advancedSearchCriteria[key] = value.trim();
-        }
-    }
-    
-    currentPage = 1;
-    filterAndSort();
-    
-    document.getElementById('advancedSearchModal').querySelector('[data-bs-dismiss="modal"]').click();
-    
-    // แสดงสถานะการค้นหาขั้นสูง
-    updateSearchStatus();
-}
-
-function clearAdvancedSearch() {
-    document.getElementById('advancedSearchForm').reset();
-    advancedSearchCriteria = {};
-    updateSearchStatus();
-}
-
-function updateSearchStatus() {
-    const hasAdvancedSearch = Object.keys(advancedSearchCriteria).length > 0;
-    const statusElement = document.getElementById('advancedSearchStatus');
-    
-    if (statusElement) {
-        statusElement.remove();
-    }
-    
-    if (hasAdvancedSearch) {
-        const searchCount = Object.keys(advancedSearchCriteria).length;
-        const statusHTML = `
-            <div id="advancedSearchStatus" class="alert alert-info alert-dismissible fade show" role="alert">
-                <i class="bi bi-info-circle"></i> กำลังใช้การค้นหาขั้นสูง (${searchCount} เงื่อนไข)
-                <button type="button" class="btn-close" onclick="clearAllAdvancedSearch()"></button>
-            </div>
-        `;
-        document.querySelector('#customersList .card-body').insertAdjacentHTML('afterbegin', statusHTML);
-    }
-}
-
-function clearAllAdvancedSearch() {
-    advancedSearchCriteria = {};
-    currentPage = 1;
-    filterAndSort();
-    updateSearchStatus();
-}
-
-// Contact modal functions - แก้ไขปัญหาการจัดการเวลา
-async function showContactModal(customerId) {
-    try {
-        const [customerRes, contactsRes] = await Promise.all([
-            fetch(`/api/customers/${customerId}`),
-            fetch(`/api/customers/${customerId}/contacts`)
-        ]);
-
-        const customer = await customerRes.json();
-        const contacts = await contactsRes.json();
-
-        // สร้างค่าเริ่มต้นสำหรับเวลาปัจจุบัน (เวลาท้องถิ่น)
-        const now = new Date();
-        const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-
-        const contactModalHTML = `
-            <div class="modal fade" id="contactModal" tabindex="-1">
-                <div class="modal-dialog modal-xl">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title">อัพเดตการติดต่อ - ${customer.company_name}</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                        </div>
-                        <div class="modal-body">
-                            <div class="row">
-                                <div class="col-md-5">
-                                    <h6>เพิ่มการติดต่อใหม่</h6>
-                                    <form id="contactForm">
-                                        <div class="mb-3">
-                                            <label class="form-label">วันที่ติดต่อ *</label>
-                                            <input type="datetime-local" class="form-control" name="contact_date" value="${localDateTime}" required>
-                                            <div class="form-text">เลือกวันและเวลาที่ติดต่อ</div>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label class="form-label">ประเภทการติดต่อ *</label>
-                                            <select class="form-select" name="contact_type" required>
-                                                <option value="">เลือกประเภท</option>
-                                                <option value="เริ่มต้น">เริ่มต้น</option>
-                                                <option value="ติดตาม">ติดตาม</option>
-                                                <option value="นำเสนอ">นำเสนอ</option>
-                                                <option value="เจรจา">เจรจา</option>
-                                                <option value="ปิดการขาย">ปิดการขาย</option>
-                                            </select>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label class="form-label">สถานะ *</label>
-                                            <select class="form-select" name="contact_status" required>
-                                                <option value="">เลือกสถานะ</option>
-                                                <option value="สนใจ">สนใจ</option>
-                                                <option value="รอพิจารณา">รอพิจารณา</option>
-                                                <option value="นัดหมาย">นัดหมาย</option>
-                                                <option value="เจรจา">เจรจา</option>
-                                                <option value="สำเร็จ">สำเร็จ</option>
-                                                <option value="ไม่สำเร็จ">ไม่สำเร็จ</option>
-                                                <option value="รอติดตาม">รอติดตาม</option>
-                                            </select>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label class="form-label">การเสนอราคา *</label>
-                                            <select class="form-select" name="quotation_status" required>
-                                                <option value="ไม่เสนอราคา">ไม่เสนอราคา</option>
-                                                <option value="เสนอราคาแล้ว">เสนอราคาแล้ว</option>
-                                                <option value="รอตอบกลับ">รอตอบกลับ</option>
-                                                <option value="อนุมัติราคา">อนุมัติราคา</option>
-                                                <option value="ไม่อนุมัติราคา">ไม่อนุมัติราคา</option>
-                                                <option value="ต่อรองราคา">ต่อรองราคา</option>
-                                            </select>
-                                        </div>
-                                        <div class="mb-3" id="quotationAmountDiv" style="display: none;">
-                                            <label class="form-label">จำนวนเงินที่เสนอ (บาท)</label>
-                                            <input type="number" class="form-control" name="quotation_amount" step="0.01" placeholder="ระบุจำนวนเงิน">
-                                        </div>
-                                        <div class="mb-3">
-                                            <label class="form-label">ช่องทางติดต่อ</label>
-                                            <select class="form-select" name="contact_method">
-                                                <option value="">เลือกช่องทาง</option>
-                                                <option value="โทรศัพท์">โทรศัพท์</option>
-                                                <option value="อีเมล">อีเมล</option>
-                                                <option value="LINE">LINE</option>
-                                                <option value="พบหน้า">พบหน้า</option>
-                                                <option value="วิดีโอคอล">วิดีโอคอล</option>
-                                            </select>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label class="form-label">ผู้ติดต่อ</label>
-                                            <input type="text" class="form-control" name="contact_person" placeholder="ชื่อผู้ติดต่อ">
-                                        </div>
-                                        <div class="mb-3">
-                                            <label class="form-label">รายละเอียดการติดต่อ</label>
-                                            <textarea class="form-control" name="contact_details" rows="3" placeholder="บันทึกรายละเอียดการติดต่อ"></textarea>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label class="form-label">วันติดตามครั้งต่อไป</label>
-                                            <input type="date" class="form-control" name="next_follow_up">
-                                        </div>
-                                        <div class="mb-3">
-                                            <label class="form-label">หมายเหตุ</label>
-                                            <textarea class="form-control" name="notes" rows="2" placeholder="หมายเหตุเพิ่มเติม"></textarea>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label class="form-label">อัพเดตสถานะลูกค้า</label>
-                                            <select class="form-select" name="customer_status_update">
-                                                <option value="">ไม่เปลี่ยน (${customer.customer_status || 'ไม่ระบุ'})</option>
-                                                <option value="Lead">Lead</option>
-                                                <option value="Potential">Potential</option>
-                                                <option value="Prospect">Prospect</option>
-                                                <option value="Pipeline">Pipeline</option>
-                                                <option value="PO">PO</option>
-                                                <option value="Close">Close</option>
-                                            </select>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label class="form-label">ผู้บันทึก</label>
-                                            <input type="text" class="form-control" name="created_by" placeholder="ชื่อผู้บันทึก" value="Admin">
-                                        </div>
-                                        <button type="submit" class="btn btn-primary w-100">บันทึกการติดต่อ</button>
-                                    </form>
-                                </div>
-                                <div class="col-md-7">
-                                    <h6>ประวัติการติดต่อทั้งหมด (${contacts.length} รายการ)</h6>
-                                    <div id="contactHistory" style="max-height: 500px; overflow-y: auto;">
-                                        ${generateContactHistory(contacts)}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ปิด</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        document.body.insertAdjacentHTML('beforeend', contactModalHTML);
-        const modal = new bootstrap.Modal(document.getElementById('contactModal'));
-        modal.show();
-
-        // เพิ่ม data attribute เพื่อให้ functions อื่นเข้าถึงได้
-        document.getElementById('contactModal').setAttribute('data-customer-id', customerId);
-
-        // เพิ่ม event listener สำหรับ quotation status
-        const quotationSelect = document.querySelector('select[name="quotation_status"]');
-        const quotationAmountDiv = document.getElementById('quotationAmountDiv');
-        
-        quotationSelect.addEventListener('change', function() {
-            if (this.value === 'เสนอราคาแล้ว' || this.value === 'รอตอบกลับ' || 
-                this.value === 'อนุมัติราคา' || this.value === 'ไม่อนุมัติราคา' || 
-                this.value === 'ต่อรองราคา') {
-                quotationAmountDiv.style.display = 'block';
-                document.querySelector('input[name="quotation_amount"]').required = true;
-            } else {
-                quotationAmountDiv.style.display = 'none';
-                document.querySelector('input[name="quotation_amount"]').required = false;
-            }
-        });
-
-        document.getElementById('contactForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            addContactLog(customerId);
-        });
-
-        document.getElementById('contactModal').addEventListener('hidden.bs.modal', function () {
-            this.remove();
-        });
-
-    } catch (error) {
-        console.error('Error:', error);
-        alert('เกิดข้อผิดพลาดในการโหลดข้อมูล');
-    }
-}
-
-function generateContactHistory(contacts) {
-    if (contacts.length === 0) {
-        return '<div class="text-center text-muted py-3">ยังไม่มีประวัติการติดต่อ</div>';
-    }
-
-    return contacts.map(contact => {
-        // แปลงเวลาจาก UTC กลับเป็นเวลาท้องถิ่นที่ user เลือกไว้
-        const contactDate = new Date(contact.contact_date);
-        // เนื่องจากเราเก็บเวลา UTC ที่แทนค่าเวลาท้องถิ่น เราต้องแปลงกลับ
-        const timezoneOffset = contactDate.getTimezoneOffset() * 60000;
-        const localDateTime = new Date(contactDate.getTime() + timezoneOffset);
-        
-        const displayDate = localDateTime.toLocaleString('th-TH', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false
-        });
-
-        const quotationInfo = contact.quotation_status && contact.quotation_status !== 'ไม่เสนอราคา' 
-            ? `<div class="mt-1"><small><strong>การเสนอราคา:</strong> ${getQuotationStatusBadge(contact.quotation_status, contact.quotation_amount)}</small></div>`
-            : '';
-
-        return `
-            <div class="card mb-2">
-                <div class="card-body p-3">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <h6 class="mb-1">${contact.contact_type || '-'}</h6>
-                        <div class="d-flex gap-1 align-items-center">
-                            <small class="text-muted me-2">${displayDate}</small>
-                            <button class="btn btn-sm btn-outline-primary" onclick="editContact(${contact.id})" title="แก้ไข">
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                            <button class="btn btn-sm btn-outline-danger" onclick="deleteContact(${contact.id})" title="ลบ">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-sm-6">
-                            <small><strong>สถานะ:</strong> <span class="badge bg-secondary">${contact.contact_status || '-'}</span></small>
-                        </div>
-                        <div class="col-sm-6">
-                            <small><strong>ช่องทาง:</strong> ${contact.contact_method || '-'}</small>
-                        </div>
-                    </div>
-                    ${contact.contact_person ? `<div class="mt-1"><small><strong>ผู้ติดต่อ:</strong> ${contact.contact_person}</small></div>` : ''}
-                    ${contact.contact_details ? `<div class="mt-1"><small><strong>รายละเอียด:</strong> ${contact.contact_details}</small></div>` : ''}
-                    ${quotationInfo}
-                    ${contact.next_follow_up ? `<div class="mt-1"><small><strong>ติดตามครั้งต่อไป:</strong> ${new Date(contact.next_follow_up).toLocaleDateString('th-TH')}</small></div>` : ''}
-                    ${contact.notes ? `<div class="mt-1"><small><strong>หมายเหตุ:</strong> ${contact.notes}</small></div>` : ''}
-                    <div class="mt-1"><small class="text-muted">บันทึกโดย: ${contact.created_by || 'ไม่ระบุ'}</small></div>
-                </div>
-            </div>
-        `;
-    }).join('');
-}
-
-// ฟังก์ชันแก้ไขการติดต่อ
-async function editContact(contactId) {
-    try {
-        const response = await fetch(`/api/contacts/${contactId}`);
-        const contact = await response.json();
-
-        if (response.ok) {
-            showEditContactModal(contact);
-        } else {
-            showNotification('ไม่สามารถโหลดข้อมูลการติดต่อได้', 'danger');
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        showNotification('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'danger');
-    }
-}
-
-// แสดง Modal แก้ไขการติดต่อ
-function showEditContactModal(contact) {
-    // แปลงเวลาสำหรับ datetime-local input
-    const contactDate = new Date(contact.contact_date);
-    const timezoneOffset = contactDate.getTimezoneOffset() * 60000;
-    const localDateTime = new Date(contactDate.getTime() + timezoneOffset);
-    const localDateTimeString = localDateTime.toISOString().slice(0, 16);
-
-    const editContactHTML = `
-        <div class="modal fade" id="editContactModal" tabindex="-1">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">แก้ไขการติดต่อ</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <form id="editContactForm">
-                            <div class="mb-3">
-                                <label class="form-label">วันที่ติดต่อ *</label>
-                                <input type="datetime-local" class="form-control" name="contact_date" value="${localDateTimeString}" required>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">ประเภทการติดต่อ *</label>
-                                <select class="form-select" name="contact_type" required>
-                                    <option value="">เลือกประเภท</option>
-                                    <option value="เริ่มต้น" ${contact.contact_type === 'เริ่มต้น' ? 'selected' : ''}>เริ่มต้น</option>
-                                    <option value="ติดตาม" ${contact.contact_type === 'ติดตาม' ? 'selected' : ''}>ติดตาม</option>
-                                    <option value="นำเสนอ" ${contact.contact_type === 'นำเสนอ' ? 'selected' : ''}>นำเสนอ</option>
-                                    <option value="เจรจา" ${contact.contact_type === 'เจรจา' ? 'selected' : ''}>เจรจา</option>
-                                    <option value="ปิดการขาย" ${contact.contact_type === 'ปิดการขาย' ? 'selected' : ''}>ปิดการขาย</option>
-                                </select>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">สถานะ *</label>
-                                <select class="form-select" name="contact_status" required>
-                                    <option value="">เลือกสถานะ</option>
-                                    <option value="สนใจ" ${contact.contact_status === 'สนใจ' ? 'selected' : ''}>สนใจ</option>
-                                    <option value="รอพิจารณา" ${contact.contact_status === 'รอพิจารณา' ? 'selected' : ''}>รอพิจารณา</option>
-                                    <option value="นัดหมาย" ${contact.contact_status === 'นัดหมาย' ? 'selected' : ''}>นัดหมาย</option>
-                                    <option value="เจรจา" ${contact.contact_status === 'เจรจา' ? 'selected' : ''}>เจรจา</option>
-                                    <option value="สำเร็จ" ${contact.contact_status === 'สำเร็จ' ? 'selected' : ''}>สำเร็จ</option>
-                                    <option value="ไม่สำเร็จ" ${contact.contact_status === 'ไม่สำเร็จ' ? 'selected' : ''}>ไม่สำเร็จ</option>
-                                    <option value="รอติดตาม" ${contact.contact_status === 'รอติดตาม' ? 'selected' : ''}>รอติดตาม</option>
-                                </select>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">การเสนอราคา *</label>
-                                <select class="form-select" name="quotation_status" id="editQuotationStatus" required>
-                                    <option value="ไม่เสนอราคา" ${(!contact.quotation_status || contact.quotation_status === 'ไม่เสนอราคา') ? 'selected' : ''}>ไม่เสนอราคา</option>
-                                    <option value="เสนอราคาแล้ว" ${contact.quotation_status === 'เสนอราคาแล้ว' ? 'selected' : ''}>เสนอราคาแล้ว</option>
-                                    <option value="รอตอบกลับ" ${contact.quotation_status === 'รอตอบกลับ' ? 'selected' : ''}>รอตอบกลับ</option>
-                                    <option value="อนุมัติราคา" ${contact.quotation_status === 'อนุมัติราคา' ? 'selected' : ''}>อนุมัติราคา</option>
-                                    <option value="ไม่อนุมัติราคา" ${contact.quotation_status === 'ไม่อนุมัติราคา' ? 'selected' : ''}>ไม่อนุมัติราคา</option>
-                                    <option value="ต่อรองราคา" ${contact.quotation_status === 'ต่อรองราคา' ? 'selected' : ''}>ต่อรองราคา</option>
-                                </select>
-                            </div>
-                            <div class="mb-3" id="editQuotationAmountDiv" style="display: ${(contact.quotation_status && contact.quotation_status !== 'ไม่เสนอราคา') ? 'block' : 'none'};">
-                                <label class="form-label">จำนวนเงินที่เสนอ (บาท)</label>
-                                <input type="number" class="form-control" name="quotation_amount" step="0.01" value="${contact.quotation_amount || ''}" placeholder="ระบุจำนวนเงิน">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">ช่องทางติดต่อ</label>
-                                <select class="form-select" name="contact_method">
-                                    <option value="">เลือกช่องทาง</option>
-                                    <option value="โทรศัพท์" ${contact.contact_method === 'โทรศัพท์' ? 'selected' : ''}>โทรศัพท์</option>
-                                    <option value="อีเมล" ${contact.contact_method === 'อีเมล' ? 'selected' : ''}>อีเมล</option>
-                                    <option value="LINE" ${contact.contact_method === 'LINE' ? 'selected' : ''}>LINE</option>
-                                    <option value="พบหน้า" ${contact.contact_method === 'พบหน้า' ? 'selected' : ''}>พบหน้า</option>
-                                    <option value="วิดีโอคอล" ${contact.contact_method === 'วิดีโอคอล' ? 'selected' : ''}>วิดีโอคอล</option>
-                                </select>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">ผู้ติดต่อ</label>
-                                <input type="text" class="form-control" name="contact_person" value="${contact.contact_person || ''}" placeholder="ชื่อผู้ติดต่อ">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">รายละเอียดการติดต่อ</label>
-                                <textarea class="form-control" name="contact_details" rows="3" placeholder="บันทึกรายละเอียดการติดต่อ">${contact.contact_details || ''}</textarea>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">วันติดตามครั้งต่อไป</label>
-                                <input type="date" class="form-control" name="next_follow_up" value="${contact.next_follow_up ? contact.next_follow_up.split('T')[0] : ''}">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">หมายเหตุ</label>
-                                <textarea class="form-control" name="notes" rows="2" placeholder="หมายเหตุเพิ่มเติม">${contact.notes || ''}</textarea>
-                            </div>
-                        </form>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
-                        <button type="button" class="btn btn-primary" onclick="updateContact(${contact.id})">บันทึกการแก้ไข</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-
-    document.body.insertAdjacentHTML('beforeend', editContactHTML);
-    const modal = new bootstrap.Modal(document.getElementById('editContactModal'));
-    modal.show();
-
-    // เพิ่ม event listener สำหรับ edit quotation status
-    const editQuotationSelect = document.getElementById('editQuotationStatus');
-    const editQuotationAmountDiv = document.getElementById('editQuotationAmountDiv');
-    
-    editQuotationSelect.addEventListener('change', function() {
-        if (this.value === 'เสนอราคาแล้ว' || this.value === 'รอตอบกลับ' || 
-            this.value === 'อนุมัติราคา' || this.value === 'ไม่อนุมัติราคา' || 
-            this.value === 'ต่อรองราคา') {
-            editQuotationAmountDiv.style.display = 'block';
-        } else {
-            editQuotationAmountDiv.style.display = 'none';
-        }
-    });
-
-    document.getElementById('editContactModal').addEventListener('hidden.bs.modal', function () {
-        this.remove();
-    });
-}
-
-// อัพเดตการติดต่อ
-async function updateContact(contactId) {
-    const form = document.getElementById('editContactForm');
-    const formData = new FormData(form);
-
-    // จัดการเวลาเหมือนกับการเพิ่มใหม่
-    const contactDateInput = formData.get('contact_date');
-    let contactDateTime = null;
-    if (contactDateInput) {
-        const localDate = new Date(contactDateInput);
-        const timezoneOffset = localDate.getTimezoneOffset() * 60000;
-        contactDateTime = new Date(localDate.getTime() - timezoneOffset).toISOString();
-    }
-
-    const contactData = {
-        contact_type: formData.get('contact_type'),
-        contact_status: formData.get('contact_status'),
-        contact_method: formData.get('contact_method'),
-        contact_person: formData.get('contact_person'),
-        contact_details: formData.get('contact_details'),
-        next_follow_up: formData.get('next_follow_up') || null,
-        notes: formData.get('notes'),
-        contact_date: contactDateTime,
-        quotation_status: formData.get('quotation_status'),
-        quotation_amount: formData.get('quotation_amount') ? parseFloat(formData.get('quotation_amount')) : null
-    };
-
-    try {
-        const response = await fetch(`/api/contacts/${contactId}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(contactData)
-        });
-
-        if (response.ok) {
-            showNotification('แก้ไขการติดต่อเรียบร้อยแล้ว', 'success');
-            document.getElementById('editContactModal').querySelector('[data-bs-dismiss="modal"]').click();
-            // รีเฟรช contact modal
-            const contactModal = document.getElementById('contactModal');
-            if (contactModal) {
-                const customerId = contactModal.getAttribute('data-customer-id');
-                if (customerId) {
-                    contactModal.querySelector('[data-bs-dismiss="modal"]').click();
-                    setTimeout(() => {
-                        showContactModal(customerId);
-                        // รีเฟรชรายการลูกค้าเพื่ออัพเดตสถานะการเสนอราคา
-                        loadCustomers();
-                    }, 300);
-                }
-            }
-        } else {
-            const errorData = await response.json();
-            showNotification('เกิดข้อผิดพลาดในการแก้ไข: ' + (errorData.error || 'ไม่ทราบสาเหตุ'), 'danger');
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        showNotification('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'danger');
-    }
-}
-
-// ลบการติดต่อ
-async function deleteContact(contactId) {
-    if (!confirm('คุณต้องการลบการติดต่อนี้หรือไม่?')) {
-        return;
-    }
-
-    try {
-        const response = await fetch(`/api/contacts/${contactId}`, {
-            method: 'DELETE'
-        });
-
-        if (response.ok) {
-            showNotification('ลบการติดต่อเรียบร้อยแล้ว', 'success');
-            // รีเฟรช contact modal
-            const contactModal = document.getElementById('contactModal');
-            if (contactModal) {
-                const customerId = contactModal.getAttribute('data-customer-id');
-                if (customerId) {
-                    contactModal.querySelector('[data-bs-dismiss="modal"]').click();
-                    setTimeout(() => {
-                        showContactModal(customerId);
-                        // รีเฟรชรายการลูกค้าเพื่ออัพเดตสถานะการเสนอราคา
-                        loadCustomers();
-                    }, 300);
-                }
-            }
-        } else {
-            showNotification('เกิดข้อผิดพลาดในการลบ', 'danger');
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        showNotification('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'danger');
-    }
-}
-
-// แก้ไขฟังก์ชันบันทึกการติดต่อ - แก้ปัญหาหลัก
-async function addContactLog(customerId) {
-    const form = document.getElementById('contactForm');
-    const formData = new FormData(form);
-
-    // รับค่าเวลาที่ผู้ใช้เลือก และจัดการ timezone อย่างถูกต้อง
-    const contactDateInput = formData.get('contact_date');
-    
-    // สร้าง Date object จากค่าที่ user เลือก (ในรูปแบบ YYYY-MM-DDTHH:MM)
-    // และเก็บเป็น timestamp ที่แทนเวลาท้องถิ่น
-    let contactDateTime = null;
-    if (contactDateInput) {
-        // แปลง datetime-local เป็น timestamp แบบ local time
-        const localDate = new Date(contactDateInput);
-        // ปรับ timezone offset เพื่อให้ได้เวลา UTC ที่แทนค่าเวลาท้องถิ่นที่ user เลือก
-        const timezoneOffset = localDate.getTimezoneOffset() * 60000;
-        contactDateTime = new Date(localDate.getTime() - timezoneOffset).toISOString();
-    } else {
-        const now = new Date();
-        const timezoneOffset = now.getTimezoneOffset() * 60000;
-        contactDateTime = new Date(now.getTime() - timezoneOffset).toISOString();
-    }
-    
-    const contactData = {
-        contact_type: formData.get('contact_type'),
-        contact_status: formData.get('contact_status'),
-        contact_method: formData.get('contact_method'),
-        contact_person: formData.get('contact_person'),
-        contact_details: formData.get('contact_details'),
-        next_follow_up: formData.get('next_follow_up') || null,
-        notes: formData.get('notes'),
-        created_by: formData.get('created_by'),
-        customer_status_update: formData.get('customer_status_update') || null,
-        contact_date: contactDateTime,
-        quotation_status: formData.get('quotation_status'),
-        quotation_amount: formData.get('quotation_amount') ? parseFloat(formData.get('quotation_amount')) : null
-    };
-
-    // Show loading state
-    const submitButton = form.querySelector('button[type="submit"]');
-    const originalText = submitButton.innerHTML;
-    submitButton.disabled = true;
-    submitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>กำลังบันทึก...';
-
-    try {
-        const response = await fetch(`/api/customers/${customerId}/contacts`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(contactData)
-        });
-
-        if (response.ok) {
-            showNotification('บันทึกการติดต่อเรียบร้อยแล้ว', 'success');
-            document.getElementById('contactModal').querySelector('[data-bs-dismiss="modal"]').click();
-            // ✅ สำคัญ: Refresh customer list เพื่อให้แสดงสถานะการเสนอราคาใหม่
-            await loadCustomers();
-        } else {
-            const errorData = await response.json();
-            showNotification('เกิดข้อผิดพลาดในการบันทึกข้อมูล: ' + (errorData.error || 'ไม่ทราบสาเหตุ'), 'danger');
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        showNotification('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'danger');
-    } finally {
-        submitButton.disabled = false;
-        submitButton.innerHTML = originalText;
-    }
 }
 
 // Task modal functions
