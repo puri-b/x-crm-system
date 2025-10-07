@@ -35,6 +35,24 @@ pool.connect()
         console.error('Database connection error:', err);
     });
 
+// Helper function to update contract_value when quotation_amount is provided
+async function updateContractValueFromQuotation(customerId, quotationAmount) {
+    if (quotationAmount && quotationAmount > 0) {
+        try {
+            await pool.query(
+                `UPDATE x_crmsystem.customers 
+                SET contract_value = $1, updated_at = CURRENT_TIMESTAMP
+                WHERE id = $2`,
+                [quotationAmount, customerId]
+            );
+            console.log(`Updated contract_value for customer ${customerId} to ${quotationAmount}`);
+        } catch (err) {
+            console.error('Error updating contract_value:', err);
+            throw err;
+        }
+    }
+}
+
 // Root route
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -45,6 +63,23 @@ app.get('/api/customers', async (req, res) => {
     try {
         const result = await pool.query('SELECT * FROM x_crmsystem.customers ORDER BY created_at DESC');
         console.log('Customers found:', result.rows.length);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Database error:', err);
+        res.status(500).json({ error: 'Database error: ' + err.message });
+    }
+});
+
+// ✅ New optimized endpoint for getting all contacts at once
+app.get('/api/customers/contacts/all', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT customer_id, id, contact_date, quotation_status, quotation_amount 
+            FROM x_crmsystem.contact_logs 
+            WHERE quotation_status IS NOT NULL 
+            ORDER BY customer_id, contact_date DESC
+        `);
+        console.log('All contacts found:', result.rows.length);
         res.json(result.rows);
     } catch (err) {
         console.error('Database error:', err);
@@ -153,7 +188,6 @@ app.delete('/api/customers/:id', async (req, res) => {
         res.status(500).json({ error: 'Database error: ' + err.message });
     }
 });
-
 // Tasks API routes
 app.get('/api/tasks', async (req, res) => {
     try {
@@ -315,7 +349,7 @@ app.get('/api/contacts/:id', async (req, res) => {
     }
 });
 
-// Update contact - แก้ไขให้รองรับ quotation_status และ quotation_amount
+// ✅ Update contact - แก้ไขให้รองรับ quotation_status และ quotation_amount พร้อมอัพเดต contract_value
 app.put('/api/contacts/:id', async (req, res) => {
     const contactId = req.params.id;
     const {
@@ -324,8 +358,12 @@ app.put('/api/contacts/:id', async (req, res) => {
         quotation_status, quotation_amount
     } = req.body;
 
+    const client = await pool.connect();
     try {
-        const result = await pool.query(
+        await client.query('BEGIN');
+
+        // Update contact log
+        const contactResult = await client.query(
             `UPDATE x_crmsystem.contact_logs 
             SET contact_type = $1, contact_status = $2, contact_method = $3, 
                 contact_person = $4, contact_details = $5, next_follow_up = $6, 
@@ -338,14 +376,32 @@ app.put('/api/contacts/:id', async (req, res) => {
              quotation_status, quotation_amount, contactId]
         );
         
-        if (result.rows.length === 0) {
-            res.status(404).json({ error: 'Contact not found' });
-        } else {
-            res.json(result.rows[0]);
+        if (contactResult.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'Contact not found' });
         }
+
+        const contact = contactResult.rows[0];
+
+        // ✅ อัพเดต contract_value ถ้ามี quotation_amount
+        if (quotation_amount && quotation_amount > 0) {
+            await client.query(
+                `UPDATE x_crmsystem.customers 
+                SET contract_value = $1, updated_at = CURRENT_TIMESTAMP
+                WHERE id = $2`,
+                [quotation_amount, contact.customer_id]
+            );
+            console.log(`Updated contract_value for customer ${contact.customer_id} to ${quotation_amount} from contact update`);
+        }
+
+        await client.query('COMMIT');
+        res.json(contact);
     } catch (err) {
+        await client.query('ROLLBACK');
         console.error('Update contact error:', err);
         res.status(500).json({ error: 'Failed to update contact: ' + err.message });
+    } finally {
+        client.release();
     }
 });
 
@@ -369,7 +425,7 @@ app.delete('/api/contacts/:id', async (req, res) => {
     }
 });
 
-// แก้ไขการจัดการเวลาในการบันทึกการติดต่อ - รองรับ quotation_status และ quotation_amount
+// ✅ แก้ไขการจัดการเวลาในการบันทึกการติดต่อ - รองรับ quotation_status และ quotation_amount พร้อมอัพเดต contract_value
 app.post('/api/customers/:id/contacts', async (req, res) => {
     const customerId = req.params.id;
     const {
@@ -378,7 +434,10 @@ app.post('/api/customers/:id/contacts', async (req, res) => {
         contact_date, quotation_status, quotation_amount
     } = req.body;
 
+    const client = await pool.connect();
     try {
+        await client.query('BEGIN');
+
         // รับค่า contact_date ที่ส่งมาจาก frontend 
         // ค่านี้เป็น UTC timestamp ที่แทนค่าเวลาท้องถิ่นที่ user เลือก
         let contactDateTime;
@@ -396,7 +455,7 @@ app.post('/api/customers/:id/contacts', async (req, res) => {
         console.log('Final contactDateTime for database:', contactDateTime);
 
         // Add contact log with quotation information
-        const contactResult = await pool.query(
+        const contactResult = await client.query(
             `INSERT INTO x_crmsystem.contact_logs 
             (customer_id, contact_type, contact_status, contact_method, contact_person,
              contact_details, next_follow_up, notes, created_by, contact_date,
@@ -414,7 +473,7 @@ app.post('/api/customers/:id/contacts', async (req, res) => {
 
         // Update customer status if provided
         if (customer_status_update) {
-            await pool.query(
+            await client.query(
                 `UPDATE x_crmsystem.customers 
                 SET customer_status = $1, updated_at = CURRENT_TIMESTAMP
                 WHERE id = $2`,
@@ -422,19 +481,33 @@ app.post('/api/customers/:id/contacts', async (req, res) => {
             );
         }
 
+        // ✅ อัพเดต contract_value ถ้ามี quotation_amount
+        if (quotation_amount && quotation_amount > 0) {
+            await client.query(
+                `UPDATE x_crmsystem.customers 
+                SET contract_value = $1, updated_at = CURRENT_TIMESTAMP
+                WHERE id = $2`,
+                [quotation_amount, customerId]
+            );
+            console.log(`Updated contract_value for customer ${customerId} to ${quotation_amount} from new contact`);
+        }
+
+        await client.query('COMMIT');
         res.json(contactResult.rows[0]);
     } catch (err) {
+        await client.query('ROLLBACK');
         console.error('Add contact log error:', err);
         res.status(500).json({ error: 'Failed to add contact log: ' + err.message });
+    } finally {
+        client.release();
     }
 });
-
 // Health check endpoint
 app.get('/api/health', (req, res) => {
     res.json({ 
         status: 'OK', 
         timestamp: new Date().toISOString(),
-        version: '1.2.0'
+        version: '1.3.0' // Updated version with contract_value sync
     });
 });
 
@@ -548,6 +621,6 @@ if (require.main === module) {
     app.listen(port, () => {
         console.log(`Server running at http://localhost:${port}`);
         console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-        console.log('CRM System v1.2.0 - Updated with Quotation Status');
+        console.log('CRM System v1.3.0 - Updated with Contract Value Sync from Quotations');
     });
 }
