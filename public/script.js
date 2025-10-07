@@ -1933,17 +1933,483 @@ function loadSettings() {
     }
 }
 
-// Task Management - Minimal placeholder functions
+// Task Management Functions - เพิ่มส่วนนี้ลงใน script.js
+// แทนที่ฟังก์ชัน placeholder ที่มีอยู่
+
+// Task Management Functions - ปรับปรุงให้รองรับ cache
 async function showTasksView() {
     document.getElementById('addCustomerForm').style.display = 'none';
     document.getElementById('customersList').style.display = 'none';
     document.getElementById('tasksView').style.display = 'block';
-    // Task functions would be implemented here
+
+    loadTasksDashboard();
+    loadAllTasks();
+
+    // Add event listeners for task filters
+    const taskStatusFilter = document.getElementById('taskStatusFilter');
+    const taskAssigneeFilter = document.getElementById('taskAssigneeFilter');
+    
+    if (taskStatusFilter) {
+        taskStatusFilter.addEventListener('change', loadAllTasks);
+    }
+    if (taskAssigneeFilter) {
+        taskAssigneeFilter.addEventListener('change', loadAllTasks);
+    }
 }
 
-async function showTaskModal(customerId, companyName) {
-    alert('Task management feature - to be implemented');
+async function loadTasksDashboard() {
+    try {
+        const response = await fetch('/api/tasks/dashboard');
+        const data = await response.json();
+
+        const todayTasksEl = document.getElementById('todayTasks');
+        const overdueTasksEl = document.getElementById('overdueTasks');
+        const urgentTasksEl = document.getElementById('urgentTasks');
+
+        if (todayTasksEl) {
+            todayTasksEl.innerHTML = generateTaskCards(data.today, 'วันนี้ไม่มีงานที่ต้องทำ');
+        }
+        if (overdueTasksEl) {
+            overdueTasksEl.innerHTML = generateTaskCards(data.overdue, 'ไม่มีงานเกินกำหนด');
+        }
+        if (urgentTasksEl) {
+            urgentTasksEl.innerHTML = generateTaskCards(data.urgent, 'ไม่มีงานสำคัญ');
+        }
+
+    } catch (error) {
+        console.error('Error loading tasks dashboard:', error);
+    }
 }
+
+async function loadAllTasks() {
+    try {
+        const response = await fetch('/api/tasks');
+        const tasks = await response.json();
+
+        const statusFilter = document.getElementById('taskStatusFilter');
+        const assigneeFilter = document.getElementById('taskAssigneeFilter');
+
+        const statusValue = statusFilter ? statusFilter.value : '';
+        const assigneeValue = assigneeFilter ? assigneeFilter.value : '';
+
+        let filteredTasks = tasks.filter(task => {
+            return (!statusValue || task.status === statusValue) &&
+                   (!assigneeValue || task.assigned_to === assigneeValue);
+        });
+
+        const allTasksTable = document.getElementById('allTasksTable');
+        if (allTasksTable) {
+            allTasksTable.innerHTML = generateTasksTable(filteredTasks);
+        }
+
+    } catch (error) {
+        console.error('Error loading all tasks:', error);
+    }
+}
+
+function generateTaskCards(tasks, emptyMessage) {
+    if (tasks.length === 0) {
+        return `<div class="text-center text-muted">${emptyMessage}</div>`;
+    }
+
+    return tasks.map(task => `
+        <div class="card mb-2 task-card" onclick="viewTaskDetail(${task.id})" style="cursor: pointer;">
+            <div class="card-body p-2">
+                <div class="d-flex justify-content-between align-items-start">
+                    <h6 class="card-title mb-1">${task.title}</h6>
+                    <span class="badge ${getPriorityBadgeClass(task.priority)}">${task.priority}</span>
+                </div>
+                <p class="card-text mb-1"><small>${task.company_name}</small></p>
+                <p class="card-text mb-1"><small>กำหนด: ${new Date(task.due_date).toLocaleDateString('th-TH')}</small></p>
+                <div class="d-flex gap-1" onclick="event.stopPropagation();">
+                    <button class="btn btn-sm btn-outline-success" onclick="updateTaskStatus(${task.id}, 'Completed')" title="ทำเสร็จ">
+                        <i class="bi bi-check"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-primary" onclick="updateTaskStatus(${task.id}, 'In Progress')" title="กำลังดำเนินการ">
+                        <i class="bi bi-play"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="updateTaskStatus(${task.id}, 'Cancelled')" title="ยกเลิกงาน">
+                        <i class="bi bi-x"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function generateTasksTable(tasks) {
+    if (tasks.length === 0) {
+        return '<div class="text-center text-muted py-3">ไม่มีงานตามเงื่อนไขที่ระบุ</div>';
+    }
+
+    let tableHTML = `
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>งาน</th>
+                        <th>ลูกค้า</th>
+                        <th>ประเภท</th>
+                        <th>ความสำคัญ</th>
+                        <th>ผู้รับผิดชอบ</th>
+                        <th>กำหนดเสร็จ</th>
+                        <th>สถานะ</th>
+                        <th>การจัดการ</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+
+    tasks.forEach(task => {
+        const dueDate = task.due_date ? new Date(task.due_date).toLocaleDateString('th-TH') : '-';
+        const isOverdue = task.due_date && new Date(task.due_date) < new Date() && task.status !== 'Completed';
+        
+        tableHTML += `
+            <tr class="${isOverdue ? 'table-danger' : ''} task-row" onclick="viewTaskDetail(${task.id})" style="cursor: pointer;">
+                <td>
+                    <strong>${task.title}</strong>
+                    ${task.description ? `<br><small class="text-muted">${task.description}</small>` : ''}
+                </td>
+                <td>${task.company_name || '-'}</td>
+                <td>${task.task_type}</td>
+                <td><span class="badge ${getPriorityBadgeClass(task.priority)}">${task.priority}</span></td>
+                <td>${getSalesPersonBadge(task.assigned_to)}</td>
+                <td>${dueDate}</td>
+                <td><span class="badge ${getStatusBadgeClass(task.status)}">${getStatusText(task.status)}</span></td>
+                <td onclick="event.stopPropagation();">
+                    ${task.status !== 'Completed' && task.status !== 'Cancelled' ? `
+                        <button class="btn btn-sm btn-outline-success me-1" onclick="updateTaskStatus(${task.id}, 'Completed')" title="ทำเสร็จ">
+                            <i class="bi bi-check"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-primary me-1" onclick="updateTaskStatus(${task.id}, 'In Progress')" title="กำลังดำเนินการ">
+                            <i class="bi bi-play"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="updateTaskStatus(${task.id}, 'Cancelled')" title="ยกเลิกงาน">
+                            <i class="bi bi-x"></i>
+                        </button>
+                    ` : `<span class="text-success">${getStatusText(task.status)}</span>`}
+                </td>
+            </tr>
+        `;
+    });
+
+    tableHTML += '</tbody></table></div>';
+    return tableHTML;
+}
+
+// ฟังก์ชันดูรายละเอียดงาน
+async function viewTaskDetail(taskId) {
+    try {
+        const response = await fetch(`/api/tasks/${taskId}`);
+        const task = await response.json();
+
+        if (response.ok) {
+            showTaskDetailModal(task);
+        } else {
+            showNotification('ไม่สามารถโหลดรายละเอียดงานได้', 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showNotification('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'danger');
+    }
+}
+
+// แสดง Modal รายละเอียดงาน
+function showTaskDetailModal(task) {
+    const dueDate = task.due_date ? new Date(task.due_date).toLocaleDateString('th-TH') : '-';
+    const reminderDate = task.reminder_date ? new Date(task.reminder_date).toLocaleString('th-TH') : '-';
+    const createdDate = new Date(task.created_at).toLocaleString('th-TH');
+    const completedDate = task.completed_at ? new Date(task.completed_at).toLocaleString('th-TH') : '-';
+
+    const taskDetailHTML = `
+        <div class="modal fade" id="taskDetailModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">รายละเอียดงาน</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <h6 class="text-primary">${task.title}</h6>
+                                <span class="badge ${getPriorityBadgeClass(task.priority)} me-2">${task.priority}</span>
+                                <span class="badge ${getStatusBadgeClass(task.status)}">${getStatusText(task.status)}</span>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <strong>ลูกค้า:</strong><br>
+                                ${task.company_name || '-'}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <strong>ประเภทงาน:</strong><br>
+                                ${task.task_type}
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <strong>ผู้รับผิดชอบ:</strong><br>
+                                ${getSalesPersonBadge(task.assigned_to)}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <strong>ผู้สร้างงาน:</strong><br>
+                                ${task.created_by || '-'}
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <strong>กำหนดเสร็จ:</strong><br>
+                                ${dueDate}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <strong>แจ้งเตือน:</strong><br>
+                                ${reminderDate}
+                            </div>
+                            
+                            <div class="col-md-12 mb-3">
+                                <strong>รายละเอียด:</strong><br>
+                                ${task.description || 'ไม่มีรายละเอียด'}
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <strong>วันที่สร้าง:</strong><br>
+                                ${createdDate}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <strong>วันที่เสร็จ:</strong><br>
+                                ${completedDate}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer flex-wrap">
+                        ${task.status !== 'Completed' && task.status !== 'Cancelled' ? `
+                            <button type="button" class="btn btn-success me-2" onclick="updateTaskStatusAndClose(${task.id}, 'Completed')">
+                                <i class="bi bi-check me-1"></i>ทำเสร็จ
+                            </button>
+                            <button type="button" class="btn btn-primary me-2" onclick="updateTaskStatusAndClose(${task.id}, 'In Progress')">
+                                <i class="bi bi-play me-1"></i>กำลังดำเนินการ
+                            </button>
+                            <button type="button" class="btn btn-danger me-auto" onclick="updateTaskStatusAndClose(${task.id}, 'Cancelled')">
+                                <i class="bi bi-x me-1"></i>ยกเลิกงาน
+                            </button>
+                        ` : ''}
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ปิด</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', taskDetailHTML);
+    const modal = new bootstrap.Modal(document.getElementById('taskDetailModal'));
+    modal.show();
+
+    document.getElementById('taskDetailModal').addEventListener('hidden.bs.modal', function () {
+        this.remove();
+    });
+}
+
+// อัพเดตสถานะและปิด modal
+async function updateTaskStatusAndClose(taskId, status) {
+    const success = await updateTaskStatus(taskId, status);
+    if (success) {
+        const modal = document.getElementById('taskDetailModal');
+        if (modal) {
+            bootstrap.Modal.getInstance(modal).hide();
+        }
+    }
+}
+
+async function updateTaskStatus(taskId, status) {
+    const completed_at = status === 'Completed' ? new Date().toISOString() : null;
+    
+    try {
+        const response = await fetch(`/api/tasks/${taskId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ status, completed_at })
+        });
+
+        if (response.ok) {
+            loadTasksDashboard();
+            loadAllTasks();
+            showNotification('อัพเดตสถานะงานเรียบร้อยแล้ว', 'success');
+            return true;
+        } else {
+            showNotification('เกิดข้อผิดพลาดในการอัพเดตสถานะ', 'danger');
+            return false;
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showNotification('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'danger');
+        return false;
+    }
+}
+
+function getPriorityBadgeClass(priority) {
+    const classes = {
+        'Low': 'bg-secondary',
+        'Medium': 'bg-primary',
+        'High': 'bg-warning',
+        'Urgent': 'bg-danger'
+    };
+    return classes[priority] || 'bg-secondary';
+}
+
+function getStatusBadgeClass(status) {
+    const classes = {
+        'Pending': 'bg-secondary',
+        'In Progress': 'bg-primary',
+        'Completed': 'bg-success',
+        'Cancelled': 'bg-dark'
+    };
+    return classes[status] || 'bg-secondary';
+}
+
+function getStatusText(status) {
+    const texts = {
+        'Pending': 'รอดำเนินการ',
+        'In Progress': 'กำลังดำเนินการ',
+        'Completed': 'เสร็จแล้ว',
+        'Cancelled': 'ยกเลิก'
+    };
+    return texts[status] || status;
+}
+
+// Task modal functions
+async function showTaskModal(customerId, companyName) {
+    const taskModalHTML = `
+        <div class="modal fade" id="taskModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">จัดการงาน - ${companyName}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="taskForm">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">ชื่องาน *</label>
+                                    <input type="text" class="form-control" name="title" required>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">ประเภทงาน *</label>
+                                    <select class="form-select" name="task_type" required>
+                                        <option value="">เลือกประเภท</option>
+                                        <option value="ติดตาม">ติดตาม</option>
+                                        <option value="นำเสนอ">นำเสนอ</option>
+                                        <option value="เจรจา">เจรจา</option>
+                                        <option value="ส่งเอกสาร">ส่งเอกสาร</option>
+                                        <option value="นัดหมาย">นัดหมาย</option>
+                                        <option value="อื่นๆ">อื่นๆ</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-12 mb-3">
+                                    <label class="form-label">รายละเอียด</label>
+                                    <textarea class="form-control" name="description" rows="2"></textarea>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">ความสำคัญ</label>
+                                    <select class="form-select" name="priority">
+                                        <option value="Low">ต่ำ</option>
+                                        <option value="Medium" selected>ปานกลาง</option>
+                                        <option value="High">สูง</option>
+                                        <option value="Urgent">ด่วน</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">ผู้รับผิดชอบ</label>
+                                    <select class="form-select" name="assigned_to">
+                                        <option value="">เลือกผู้รับผิดชอบ</option>
+                                        <option value="Aui">Aui</option>
+                                        <option value="Ink">Ink</option>
+                                        <option value="Puri">Puri</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">กำหนดเสร็จ</label>
+                                    <input type="date" class="form-control" name="due_date">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">แจ้งเตือนก่อน</label>
+                                    <input type="datetime-local" class="form-control" name="reminder_date">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">ผู้สร้าง</label>
+                                    <input type="text" class="form-control" name="created_by" value="Admin">
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">สร้างงาน</button>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ปิด</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', taskModalHTML);
+    const modal = new bootstrap.Modal(document.getElementById('taskModal'));
+    modal.show();
+
+    document.getElementById('taskForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        addTask(customerId);
+    });
+
+    document.getElementById('taskModal').addEventListener('hidden.bs.modal', function () {
+        this.remove();
+    });
+}
+
+async function addTask(customerId) {
+    const form = document.getElementById('taskForm');
+    const formData = new FormData(form);
+    
+    const taskData = {
+        title: formData.get('title'),
+        description: formData.get('description'),
+        task_type: formData.get('task_type'),
+        priority: formData.get('priority'),
+        assigned_to: formData.get('assigned_to'),
+        due_date: formData.get('due_date') || null,
+        reminder_date: formData.get('reminder_date') || null,
+        created_by: formData.get('created_by')
+    };
+
+    try {
+        const response = await fetch(`/api/customers/${customerId}/tasks`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(taskData)
+        });
+
+        if (response.ok) {
+            showNotification('สร้างงานเรียบร้อยแล้ว', 'success');
+            document.getElementById('taskModal').querySelector('[data-bs-dismiss="modal"]').click();
+        } else {
+            showNotification('เกิดข้อผิดพลาดในการสร้างงาน', 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showNotification('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'danger');
+    }
+}
+
+// Handle window resize for responsive table
+window.addEventListener('resize', createSmartDebounce(function() {
+    if (filteredCustomers.length > 0) {
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        const paginatedData = filteredCustomers.slice(startIndex, endIndex);
+        displayCustomersOptimized(paginatedData);
+    }
+}, 250));
 
 // ✅ เพิ่ม Event Listener สำหรับ Page Visibility API
 document.addEventListener('visibilitychange', function() {
