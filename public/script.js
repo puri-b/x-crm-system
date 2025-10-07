@@ -2451,3 +2451,298 @@ console.log('   - Enhanced mobile responsiveness');
 console.log('   - Memory leak prevention');
 console.log('   - Auto contract_value sync from quotations');
 console.log('📈 Expected performance boost: 70-90% faster load times');
+
+// เพิ่มฟังก์ชันนี้เข้าไปใน script.js ส่วนท้าย
+
+function quickFilter(filterType) {
+    // ล้างตัวกรองเดิม
+    clearFilters();
+    
+    const today = new Date();
+    const sevenDaysAgo = new Date(today.getTime() - (7 * 24 * 60 * 60 * 1000));
+    
+    switch(filterType) {
+        case 'high_value':
+            // Filter customers with contract value > 100,000
+            filteredCustomers = allCustomers.filter(customer => 
+                customer.contract_value && customer.contract_value > 100000
+            );
+            break;
+            
+        case 'recent':
+            // Filter customers created in last 7 days
+            filteredCustomers = allCustomers.filter(customer => 
+                new Date(customer.created_at) >= sevenDaysAgo
+            );
+            break;
+            
+        case 'no_contact':
+            // Filter customers with no contract value
+            filteredCustomers = allCustomers.filter(customer => 
+                !customer.contract_value || customer.contract_value === 0
+            );
+            break;
+            
+        case 'online_leads':
+            document.getElementById('leadSourceFilter').value = 'Online';
+            if (document.getElementById('leadSourceFilterMobile')) {
+                document.getElementById('leadSourceFilterMobile').value = 'Online';
+            }
+            filterAndSort();
+            return;
+    }
+    
+    sortCustomers();
+    displayPaginatedCustomers();
+}
+
+// Advanced search functionality - เพิ่มฟังก์ชันที่หายไป
+function showAdvancedSearch() {
+    const advancedSearchHTML = `
+        <div class="modal fade" id="advancedSearchModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">ค้นหาขั้นสูง</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="advancedSearchForm">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">ชื่อบริษัท</label>
+                                    <input type="text" class="form-control" name="company_name" placeholder="ค้นหาชื่อบริษัท">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">อีเมล</label>
+                                    <input type="text" class="form-control" name="email" placeholder="ค้นหาอีเมล">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">เบอร์โทรศัพท์</label>
+                                    <input type="text" class="form-control" name="phone_number" placeholder="ค้นหาเบอร์โทร">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">ชื่อผู้ติดต่อ</label>
+                                    <input type="text" class="form-control" name="contact_names" placeholder="ค้นหาชื่อผู้ติดต่อ">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">ประเภทธุรกิจ</label>
+                                    <input type="text" class="form-control" name="business_type" placeholder="ค้นหาประเภทธุรกิจ">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">สถานะลูกค้า</label>
+                                    <select class="form-select" name="customer_status">
+                                        <option value="">เลือกสถานะ</option>
+                                        <option value="Lead">Lead</option>
+                                        <option value="Potential">Potential</option>
+                                        <option value="Prospect">Prospect</option>
+                                        <option value="Pipeline">Pipeline</option>
+                                        <option value="PO">PO</option>
+                                        <option value="Close">Close</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">งบประมาณ (ตั้งแต่)</label>
+                                    <input type="number" class="form-control" name="budget_from" placeholder="0">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">งบประมาณ (ถึง)</label>
+                                    <input type="number" class="form-control" name="budget_to" placeholder="9999999">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Contract Value (ตั้งแต่)</label>
+                                    <input type="number" class="form-control" name="contract_value_from" placeholder="0">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Contract Value (ถึง)</label>
+                                    <input type="number" class="form-control" name="contract_value_to" placeholder="9999999">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">วันที่สร้าง (ตั้งแต่)</label>
+                                    <input type="date" class="form-control" name="created_from">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">วันที่สร้าง (ถึง)</label>
+                                    <input type="date" class="form-control" name="created_to">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">ที่ตั้ง</label>
+                                    <input type="text" class="form-control" name="location" placeholder="ค้นหาที่ตั้ง">
+                                </div>
+                                <div class="col-md-12 mb-3">
+                                    <label class="form-label">Pain Points</label>
+                                    <input type="text" class="form-control" name="pain_points" placeholder="ค้นหาปัญหาที่ต้องการแก้ไข">
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" onclick="clearAdvancedSearch()">ล้างทั้งหมด</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+                        <button type="button" class="btn btn-primary" onclick="executeAdvancedSearch()">ค้นหา</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', advancedSearchHTML);
+    const modal = new bootstrap.Modal(document.getElementById('advancedSearchModal'));
+    modal.show();
+
+    document.getElementById('advancedSearchModal').addEventListener('hidden.bs.modal', function () {
+        this.remove();
+    });
+}
+
+function executeAdvancedSearch() {
+    const form = document.getElementById('advancedSearchForm');
+    const formData = new FormData(form);
+    
+    advancedSearchCriteria = {};
+    
+    // เก็บเงื่อนไขการค้นหา
+    for (let [key, value] of formData.entries()) {
+        if (value.trim()) {
+            advancedSearchCriteria[key] = value.trim();
+        }
+    }
+    
+    currentPage = 1;
+    filterAndSort();
+    
+    document.getElementById('advancedSearchModal').querySelector('[data-bs-dismiss="modal"]').click();
+    
+    // แสดงสถานะการค้นหาขั้นสูง
+    updateSearchStatus();
+}
+
+function clearAdvancedSearch() {
+    document.getElementById('advancedSearchForm').reset();
+    advancedSearchCriteria = {};
+    updateSearchStatus();
+}
+
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+function showSettings() {
+    const settingsHTML = `
+        <div class="modal fade" id="settingsModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">การตั้งค่าระบบ</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">จำนวนรายการต่อหน้า</label>
+                            <select class="form-select" id="itemsPerPageSetting">
+                                <option value="5" ${itemsPerPage === 5 ? 'selected' : ''}>5</option>
+                                <option value="10" ${itemsPerPage === 10 ? 'selected' : ''}>10</option>
+                                <option value="25" ${itemsPerPage === 25 ? 'selected' : ''}>25</option>
+                                <option value="50" ${itemsPerPage === 50 ? 'selected' : ''}>50</option>
+                                <option value="100" ${itemsPerPage === 100 ? 'selected' : ''}>100</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="autoRefreshSetting" ${autoRefreshInterval ? 'checked' : ''}>
+                                <label class="form-check-label" for="autoRefreshSetting">
+                                    เปิดการอัพเดตอัตโนมัติ (ทุก 5 นาที)
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">ข้อมูลระบบ</label>
+                            <div class="card">
+                                <div class="card-body">
+                                    <p class="card-text mb-1"><strong>จำนวนลูกค้าทั้งหมด:</strong> ${allCustomers.length} ราย</p>
+                                    <p class="card-text mb-1"><strong>จำนวนที่แสดง:</strong> ${filteredCustomers.length} ราย</p>
+                                    <p class="card-text mb-1"><strong>อัพเดตล่าสุด:</strong> ${lastUpdateTime ? new Date(lastUpdateTime).toLocaleString('th-TH') : 'ไม่ทราบ'}</p>
+                                    <p class="card-text mb-1"><strong>แคช:</strong> ${dataCache.customers ? 'Active' : 'Inactive'}</p>
+                                    <p class="card-text mb-0"><strong>เวอร์ชั่น:</strong> 2.0.0 (Optimized)</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">คีย์ลัด</label>
+                            <div class="card">
+                                <div class="card-body small">
+                                    <p class="mb-1"><kbd>Ctrl + N</kbd> เพิ่มลูกค้าใหม่</p>
+                                    <p class="mb-1"><kbd>Ctrl + F</kbd> ค้นหา</p>
+                                    <p class="mb-1"><kbd>Ctrl + T</kbd> งานที่ต้องทำ</p>
+                                    <p class="mb-1"><kbd>Ctrl + R</kbd> รีเฟรชข้อมูล</p>
+                                    <p class="mb-0"><kbd>Esc</kbd> ปิด Modal</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-danger" onclick="clearAllCaches()">ล้าง Cache</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ปิด</button>
+                        <button type="button" class="btn btn-primary" onclick="saveSettings()">บันทึก</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', settingsHTML);
+    const modal = new bootstrap.Modal(document.getElementById('settingsModal'));
+    modal.show();
+
+    document.getElementById('settingsModal').addEventListener('hidden.bs.modal', function () {
+        this.remove();
+    });
+}
+
+// ฟังก์ชันล้าง cache
+function clearAllCaches() {
+    if (confirm('คุณต้องการล้าง Cache ทั้งหมดหรือไม่?')) {
+        clearDataCache();
+        localStorage.removeItem('crmSettings');
+        showNotification('ล้าง Cache เรียบร้อยแล้ว', 'success');
+        location.reload(); // รีโหลดหน้าเพื่อเริ่มต้นใหม่
+    }
+}
+
+function saveSettings() {
+    const newItemsPerPage = parseInt(document.getElementById('itemsPerPageSetting').value);
+    const autoRefreshEnabled = document.getElementById('autoRefreshSetting').checked;
+    
+    if (newItemsPerPage !== itemsPerPage) {
+        itemsPerPage = newItemsPerPage;
+        currentPage = 1;
+        displayPaginatedCustomers();
+    }
+    
+    if (autoRefreshEnabled && !autoRefreshInterval) {
+        initializeAutoRefresh();
+    } else if (!autoRefreshEnabled && autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+        autoRefreshInterval = null;
+    }
+    
+    // บันทึกการตั้งค่าใน localStorage
+    localStorage.setItem('crmSettings', JSON.stringify({
+        itemsPerPage: itemsPerPage,
+        autoRefresh: autoRefreshEnabled
+    }));
+    
+    showNotification('บันทึกการตั้งค่าเรียบร้อยแล้ว', 'success');
+    document.getElementById('settingsModal').querySelector('[data-bs-dismiss="modal"]').click();
+}
