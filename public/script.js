@@ -630,12 +630,12 @@ function displayCustomersOptimized(customers) {
                         <th>ผู้ติดต่อ</th>
                         <th>โทรศัพท์</th>
                         <th>วันที่บันทึกข้อมูล</th>
-                        <th>ผลิตภัณฑ์ที่สนใจ</th>
+                        <th>บริการ</th>
                         <th>แหล่งที่มา</th>
                         <th>Sales Person</th>
                         <th>สถานะ</th>
                         <th>การเสนอราคา</th>
-                        <th>Contract Value</th>
+                        <th>มุลค่างาน</th>
                     </tr>
                 </thead>
                 <tbody>
