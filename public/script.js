@@ -1895,6 +1895,18 @@ function validateForm(formData) {
         errors.push('สถานะลูกค้าเป็นข้อมูลที่จำเป็น');
     }
     
+    // ✅ เพิ่มการตรวจสอบ lead_source
+    const leadSource = formData.get('lead_source');
+    if (!leadSource || leadSource === 'เลือกแหล่งที่มา') {
+        formData.set('lead_source', 'Online'); // กำหนดค่า default
+    }
+    
+    // ✅ เพิ่มการตรวจสอบ required_products  
+    const requiredProducts = formData.get('required_products');
+    if (!requiredProducts || requiredProducts === 'เลือกผลิตภัณฑ์') {
+        formData.set('required_products', 'ไม่ระบุ'); // กำหนดค่า default
+    }
+    
     const email = formData.get('email');
     if (email && !isValidEmail(email)) {
         errors.push('รูปแบบอีเมลไม่ถูกต้อง');

@@ -267,27 +267,41 @@ app.get('/api/tasks/:id', async (req, res) => {
     }
 });
 
-app.post('/api/customers/:id/tasks', async (req, res) => {
-    const customerId = req.params.id;
+// ในไฟล์ server.js หาส่วน app.post('/api/customers') และแก้ไขตรงนี้:
+
+app.post('/api/customers', async (req, res) => {
     const {
-        title, description, task_type, priority, assigned_to, 
-        due_date, reminder_date, created_by
+        company_name, location, registration_info, business_type,
+        contact_names, phone_number, contact_history,
+        budget, required_products, pain_points,
+        contract_value, email, lead_source, sales_person, customer_status
     } = req.body;
 
     try {
+        console.log('Inserting customer:', company_name);
+        
+        // ✅ เพิ่มการตรวจสอบและกำหนดค่า default
+        const safeLeadSource = lead_source && lead_source !== 'เลือกแหล่งที่มา' ? lead_source : 'Online';
+        const safeRequiredProducts = required_products && required_products !== 'เลือกผลิตภัณฑ์' ? required_products : 'ไม่ระบุ';
+        
         const result = await pool.query(
-            `INSERT INTO x_crmsystem.tasks 
-            (customer_id, title, description, task_type, priority, assigned_to, 
-             due_date, reminder_date, created_by)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            `INSERT INTO x_crmsystem.customers 
+            (company_name, location, registration_info, business_type,
+             contact_names, phone_number, contact_history,
+             budget, required_products, pain_points,
+             contract_value, email, lead_source, sales_person, customer_status)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
             RETURNING *`,
-            [customerId, title, description, task_type, priority, assigned_to,
-             due_date, reminder_date, created_by]
+            [company_name, location, registration_info, business_type,
+             contact_names, phone_number, contact_history,
+             budget, safeRequiredProducts, pain_points,
+             contract_value, email, safeLeadSource, sales_person, customer_status]
         );
+        console.log('Customer inserted successfully');
         res.json(result.rows[0]);
     } catch (err) {
-        console.error('Add task error:', err);
-        res.status(500).json({ error: 'Failed to add task: ' + err.message });
+        console.error('Insert error:', err);
+        res.status(500).json({ error: 'Database error: ' + err.message });
     }
 });
 
