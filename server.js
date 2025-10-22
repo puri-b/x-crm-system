@@ -101,7 +101,6 @@ app.get('/api/customers/:id', async (req, res) => {
         res.status(500).json({ error: 'Database error: ' + err.message });
     }
 });
-
 app.post('/api/customers', async (req, res) => {
     const {
         company_name, location, registration_info, business_type,
@@ -112,6 +111,11 @@ app.post('/api/customers', async (req, res) => {
 
     try {
         console.log('Inserting customer:', company_name);
+        
+        // ✅ เพิ่มการตรวจสอบและกำหนดค่า default
+        const safeLeadSource = lead_source && lead_source !== 'เลือกแหล่งที่มา' ? lead_source : 'Online';
+        const safeRequiredProducts = required_products && required_products !== 'เลือกผลิตภัณฑ์' ? required_products : 'ไม่ระบุ';
+        
         const result = await pool.query(
             `INSERT INTO x_crmsystem.customers 
             (company_name, location, registration_info, business_type,
@@ -122,8 +126,8 @@ app.post('/api/customers', async (req, res) => {
             RETURNING *`,
             [company_name, location, registration_info, business_type,
              contact_names, phone_number, contact_history,
-             budget, required_products, pain_points,
-             contract_value, email, lead_source, sales_person, customer_status]
+             budget, safeRequiredProducts, pain_points,
+             contract_value, email, safeLeadSource, sales_person, customer_status]
         );
         console.log('Customer inserted successfully');
         res.json(result.rows[0]);
@@ -267,41 +271,30 @@ app.get('/api/tasks/:id', async (req, res) => {
     }
 });
 
-// ในไฟล์ server.js หาส่วน app.post('/api/customers') และแก้ไขตรงนี้:
-
-app.post('/api/customers', async (req, res) => {
+// ✅ POST endpoint สำหรับสร้าง Task ใหม่ (ที่หายไป)
+app.post('/api/customers/:id/tasks', async (req, res) => {
+    const customerId = req.params.id;
     const {
-        company_name, location, registration_info, business_type,
-        contact_names, phone_number, contact_history,
-        budget, required_products, pain_points,
-        contract_value, email, lead_source, sales_person, customer_status
+        title, description, task_type, priority, assigned_to,
+        due_date, reminder_date, created_by
     } = req.body;
 
     try {
-        console.log('Inserting customer:', company_name);
-        
-        // ✅ เพิ่มการตรวจสอบและกำหนดค่า default
-        const safeLeadSource = lead_source && lead_source !== 'เลือกแหล่งที่มา' ? lead_source : 'Online';
-        const safeRequiredProducts = required_products && required_products !== 'เลือกผลิตภัณฑ์' ? required_products : 'ไม่ระบุ';
-        
+        console.log('Creating task for customer:', customerId);
         const result = await pool.query(
-            `INSERT INTO x_crmsystem.customers 
-            (company_name, location, registration_info, business_type,
-             contact_names, phone_number, contact_history,
-             budget, required_products, pain_points,
-             contract_value, email, lead_source, sales_person, customer_status)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+            `INSERT INTO x_crmsystem.tasks 
+            (customer_id, title, description, task_type, priority, assigned_to,
+             due_date, reminder_date, created_by, status)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'Pending')
             RETURNING *`,
-            [company_name, location, registration_info, business_type,
-             contact_names, phone_number, contact_history,
-             budget, safeRequiredProducts, pain_points,
-             contract_value, email, safeLeadSource, sales_person, customer_status]
+            [customerId, title, description, task_type, priority, assigned_to,
+             due_date, reminder_date, created_by]
         );
-        console.log('Customer inserted successfully');
+        console.log('Task created successfully');
         res.json(result.rows[0]);
     } catch (err) {
-        console.error('Insert error:', err);
-        res.status(500).json({ error: 'Database error: ' + err.message });
+        console.error('Create task error:', err);
+        res.status(500).json({ error: 'Failed to create task: ' + err.message });
     }
 });
 
@@ -328,7 +321,6 @@ app.put('/api/tasks/:id', async (req, res) => {
         res.status(500).json({ error: 'Failed to update task: ' + err.message });
     }
 });
-
 // Contact logs API routes
 app.get('/api/customers/:id/contacts', async (req, res) => {
     const customerId = req.params.id;
@@ -521,7 +513,7 @@ app.get('/api/health', (req, res) => {
     res.json({ 
         status: 'OK', 
         timestamp: new Date().toISOString(),
-        version: '1.3.0' // Updated version with contract_value sync
+        version: '1.4.0' // Updated version with Tasks fix
     });
 });
 
@@ -635,6 +627,6 @@ if (require.main === module) {
     app.listen(port, () => {
         console.log(`Server running at http://localhost:${port}`);
         console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-        console.log('CRM System v1.3.0 - Updated with Contract Value Sync from Quotations');
+        console.log('CRM System v1.4.0 - Fixed Task Creation Issue');
     });
 }
