@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>เข้าสู่ระบบ - SONEXT CRM</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.10.0/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .login-container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 3rem;
+            max-width: 450px;
+            width: 100%;
+            margin: 20px;
+        }
+        
+        .logo-section {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .logo-icon {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1rem;
+            font-size: 2rem;
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+        }
+        
+        .form-control:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+        }
+        
+        .btn-login {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 10px;
+            padding: 12px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+            background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
+        }
+        
+        .input-group {
+            position: relative;
+            margin-bottom: 1.5rem;
+        }
+        
+        .input-icon {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #6c757d;
+            z-index: 10;
+        }
+        
+        .form-control {
+            padding-left: 45px;
+            border-radius: 10px;
+            border: 2px solid #e9ecef;
+            transition: all 0.3s ease;
+        }
+        
+        .alert {
+            border-radius: 10px;
+            border: none;
+        }
+        
+        .loading {
+            display: none;
+        }
+        
+        .version-info {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.85rem;
+            text-align: center;
+        }
+        
+        @media (max-width: 576px) {
+            .login-container {
+                margin: 10px;
+                padding: 2rem 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo-section">
+            <div class="logo-icon">
+                <i class="bi bi-people-fill"></i>
+            </div>
+            <h3 class="text-dark fw-bold">SONEXT CRM</h3>
+            <p class="text-muted mb-0">ระบบจัดการลูกค้าสัมพันธ์</p>
+        </div>
+        
+        <div id="alertContainer"></div>
+        
+        <form id="loginForm">
+            <div class="input-group">
+                <i class="bi bi-person input-icon"></i>
+                <input type="text" class="form-control" id="username" name="username" placeholder="ชื่อผู้ใช้" required>
+            </div>
+            
+            <div class="input-group">
+                <i class="bi bi-lock input-icon"></i>
+                <input type="password" class="form-control" id="password" name="password" placeholder="รหัสผ่าน" required>
+                <div class="position-absolute end-0 top-50 translate-middle-y me-3" style="cursor: pointer; z-index: 10;" onclick="togglePassword()">
+                    <i class="bi bi-eye" id="passwordToggle"></i>
+                </div>
+            </div>
+            
+            <div class="mb-3 form-check">
+                <input type="checkbox" class="form-check-input" id="rememberMe">
+                <label class="form-check-label" for="rememberMe">
+                    จดจำการเข้าสู่ระบบ
+                </label>
+            </div>
+            
+            <button type="submit" class="btn btn-login text-white w-100">
+                <span class="login-text">เข้าสู่ระบบ</span>
+                <span class="loading">
+                    <span class="spinner-border spinner-border-sm me-2"></span>
+                    กำลังเข้าสู่ระบบ...
+                </span>
+            </button>
+        </form>
+        
+        <div class="mt-4 text-center">
+            <small class="text-muted">
+                ผู้ใช้ทดลอง: <strong>admin</strong> / <strong>puri</strong> / <strong>aui</strong> / <strong>ink</strong><br>
+                รหัสผ่าน: <strong>password123</strong>
+            </small>
+        </div>
+    </div>
+    
+    <div class="version-info">
+        <div>SONEXT CRM v2.0 | Secure Access</div>
+        <div><i class="bi bi-shield-check me-1"></i>Protected by Advanced Security</div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // ตรวจสอบว่าผู้ใช้เข้าสู่ระบบแล้วหรือไม่
+        document.addEventListener('DOMContentLoaded', function() {
+            const token = localStorage.getItem('authToken');
+            const userData = localStorage.getItem('userData');
+            
+            if (token && userData) {
+                // ตรวจสอบว่า token ยังใช้งานได้หรือไม่
+                validateToken(token).then(isValid => {
+                    if (isValid) {
+                        window.location.href = 'index.html';
+                    } else {
+                        // ลบ token ที่หมดอายุ
+                        localStorage.removeItem('authToken');
+                        localStorage.removeItem('userData');
+                    }
+                });
+            }
+        });
+
+        // ฟังก์ชันแสดง/ซ่อนรหัสผ่าน
+        function togglePassword() {
+            const passwordInput = document.getElementById('password');
+            const toggleIcon = document.getElementById('passwordToggle');
+            
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleIcon.classList.replace('bi-eye', 'bi-eye-slash');
+            } else {
+                passwordInput.type = 'password';
+                toggleIcon.classList.replace('bi-eye-slash', 'bi-eye');
+            }
+        }
+
+        // ฟังก์ชันแสดงการแจ้งเตือน
+        function showAlert(message, type = 'danger') {
+            const alertContainer = document.getElementById('alertContainer');
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type} alert-dismissible fade show`;
+            alert.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            alertContainer.appendChild(alert);
+            
+            // ลบการแจ้งเตือนหลังจาก 5 วินาที
+            setTimeout(() => {
+                if (alert.parentNode) {
+                    alert.remove();
+                }
+            }, 5000);
+        }
+
+        // ฟังก์ชันตรวจสอบความถูกต้องของ token
+        async function validateToken(token) {
+            try {
+                const response = await fetch('/api/auth/validate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                return response.ok;
+            } catch (error) {
+                console.error('Token validation error:', error);
+                return false;
+            }
+        }
+
+        // ฟังก์ชันเข้าสู่ระบบ
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const rememberMe = document.getElementById('rememberMe').checked;
+            
+            if (!username || !password) {
+                showAlert('กรุณากรอกชื่อผู้ใช้และรหัสผ่าน', 'warning');
+                return;
+            }
+            
+            // แสดง loading state
+            const submitButton = document.querySelector('button[type="submit"]');
+            const loginText = document.querySelector('.login-text');
+            const loadingText = document.querySelector('.loading');
+            
+            submitButton.disabled = true;
+            loginText.style.display = 'none';
+            loadingText.style.display = 'inline';
+            
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        username: username,
+                        password: password,
+                        rememberMe: rememberMe
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // เก็บข้อมูลการเข้าสู่ระบบ
+                    localStorage.setItem('authToken', data.token);
+                    localStorage.setItem('userData', JSON.stringify(data.user));
+                    
+                    if (rememberMe) {
+                        localStorage.setItem('rememberLogin', 'true');
+                    }
+                    
+                    showAlert(`ยินดีต้อนรับ ${data.user.full_name}!`, 'success');
+                    
+                    // รอ 1 วินาทีแล้วไปหน้าหลัก
+                    setTimeout(() => {
+                        window.location.href = 'index.html';
+                    }, 1000);
+                    
+                } else {
+                    showAlert(data.error || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง', 'danger');
+                }
+                
+            } catch (error) {
+                console.error('Login error:', error);
+                showAlert('เกิดข้อผิดพลาดในการเข้าสู่ระบบ กรุณาลองใหม่อีกครั้ง', 'danger');
+            } finally {
+                // ซ่อน loading state
+                submitButton.disabled = false;
+                loginText.style.display = 'inline';
+                loadingText.style.display = 'none';
+            }
+        });
+
+        // ฟังก์ชัน Enter key สำหรับ submit form
+        document.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                const form = document.getElementById('loginForm');
+                const submitButton = form.querySelector('button[type="submit"]');
+                if (!submitButton.disabled) {
+                    form.dispatchEvent(new Event('submit'));
+                }
+            }
+        });
+    </script>
+</body>
+</html>

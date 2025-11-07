@@ -9,13 +9,22 @@
     <link href="style.css" rel="stylesheet">
 </head>
 <body>
-    <div class="container-fluid">
+    <!-- Loading Screen -->
+    <div id="loadingScreen" class="loading-screen">
+        <div class="text-center">
+            <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;"></div>
+            <h5>กำลังโหลดระบบ CRM...</h5>
+            <p class="text-muted">กรุณารอสักครู่</p>
+        </div>
+    </div>
+
+    <div id="mainContent" class="container-fluid" style="display: none;">
         <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
             <div class="container">
                 <a class="navbar-brand" href="#">
                     <i class="bi bi-people-fill me-2 d-none d-sm-inline"></i>CRM System SONEXT
                 </a>
-                <div class="navbar-nav">
+                <div class="navbar-nav ms-auto">
                     <button class="btn btn-light me-1" onclick="showAddForm()">
                         <i class="bi bi-plus-lg me-1"></i><span class="d-none d-sm-inline">เพิ่มลูกค้า</span>
                     </button>
@@ -28,9 +37,27 @@
                     <button class="btn btn-outline-light me-1" onclick="exportToCSV()">
                         <i class="bi bi-download me-1"></i><span class="d-none d-sm-inline">Export</span>
                     </button>
-                    <button class="btn btn-outline-light" onclick="showSettings()">
+                    <button class="btn btn-outline-light me-1" onclick="showSettings()">
                         <i class="bi bi-gear"></i>
                     </button>
+                    
+                    <!-- User Profile Dropdown -->
+                    <div class="dropdown">
+                        <button class="btn btn-outline-light dropdown-toggle" type="button" id="userDropdown" data-bs-toggle="dropdown">
+                            <i class="bi bi-person-circle me-1"></i><span id="currentUser" class="d-none d-sm-inline">ผู้ใช้</span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><h6 class="dropdown-header" id="userFullName">ข้อมูลผู้ใช้</h6></li>
+                            <li><span class="dropdown-item-text small" id="userRole"></span></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="#" onclick="changePassword()">
+                                <i class="bi bi-key me-2"></i>เปลี่ยนรหัสผ่าน
+                            </a></li>
+                            <li><a class="dropdown-item" href="#" onclick="logout()">
+                                <i class="bi bi-box-arrow-right me-2"></i>ออกจากระบบ
+                            </a></li>
+                        </ul>
+                    </div>
                 </div>
             </div>
         </nav>
@@ -429,6 +456,23 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script src="auth.js"></script>
     <script src="script.js"></script>
+    
+    <style>
+        .loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            color: white;
+        }
+    </style>
 </body>
 </html>
