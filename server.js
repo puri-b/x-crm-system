@@ -35,17 +35,21 @@ const pool = new Pool({
 // Test database connection
 pool.connect()
     .then(() => {
-        console.log('Connected to PostgreSQL database');
+        console.log('🎉 Connected to PostgreSQL database');
+        console.log(`📊 Database: ${process.env.DB_NAME} on ${process.env.DB_HOST}:${process.env.DB_PORT}`);
         // ✅ สร้างตาราง users หากยังไม่มี
         createUsersTableIfNotExists();
     })
     .catch(err => {
-        console.error('Database connection error:', err);
+        console.error('💥 Database connection error:', err);
+        console.error('🔧 Check your .env file and database settings');
     });
 
 // ✅ สร้างตาราง users และ default users
 async function createUsersTableIfNotExists() {
     try {
+        console.log('🔧 Creating users table if not exists...');
+        
         // สร้างตาราง users
         await pool.query(`
             CREATE TABLE IF NOT EXISTS x_crmsystem.users (
@@ -61,12 +65,14 @@ async function createUsersTableIfNotExists() {
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
+        console.log('✅ Users table created/verified');
 
         // ตรวจสอบว่ามี users อยู่หรือไม่
         const userCount = await pool.query('SELECT COUNT(*) FROM x_crmsystem.users');
+        console.log('👥 Existing users count:', userCount.rows[0].count);
         
         if (parseInt(userCount.rows[0].count) === 0) {
-            console.log('Creating default users...');
+            console.log('🔧 Creating default users...');
             
             // สร้าง default users
             const defaultUsers = [
@@ -77,18 +83,31 @@ async function createUsersTableIfNotExists() {
             ];
 
             for (const user of defaultUsers) {
+                console.log(`👤 Creating user: ${user.username}`);
                 const hashedPassword = await bcrypt.hash(user.password, 10);
                 await pool.query(
                     `INSERT INTO x_crmsystem.users (username, password_hash, full_name, role) 
                      VALUES ($1, $2, $3, $4)`,
                     [user.username, hashedPassword, user.full_name, user.role]
                 );
+                console.log(`✅ User created: ${user.username}`);
             }
             
-            console.log('✅ Default users created successfully');
+            console.log('🎉 All default users created successfully');
+        } else {
+            console.log('👥 Users already exist, skipping creation');
         }
+
+        // ตรวจสอบ users ที่มีอยู่
+        const allUsers = await pool.query('SELECT username, role, is_active FROM x_crmsystem.users ORDER BY username');
+        console.log('👥 Current users in database:');
+        allUsers.rows.forEach(user => {
+            console.log(`  - ${user.username} (${user.role}) ${user.is_active ? '✅' : '❌'}`);
+        });
+
     } catch (error) {
-        console.error('Error creating users table:', error);
+        console.error('💥 Error creating users table:', error);
+        console.error('Stack trace:', error.stack);
     }
 }
 
@@ -115,8 +134,10 @@ const authenticateToken = (req, res, next) => {
 app.post('/api/auth/login', async (req, res) => {
     try {
         const { username, password, rememberMe } = req.body;
+        console.log('🔐 Login attempt:', { username, hasPassword: !!password });
 
         if (!username || !password) {
+            console.log('❌ Missing credentials');
             return res.status(400).json({ error: 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน' });
         }
 
@@ -127,18 +148,25 @@ app.post('/api/auth/login', async (req, res) => {
             WHERE username = $1 AND is_active = true
         `;
         
+        console.log('🔍 Searching for user:', username);
         const userResult = await pool.query(userQuery, [username]);
+        console.log('👤 Users found:', userResult.rows.length);
 
         if (userResult.rows.length === 0) {
+            console.log('❌ User not found');
             return res.status(401).json({ error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' });
         }
 
         const user = userResult.rows[0];
+        console.log('👤 User found:', { id: user.id, username: user.username, role: user.role });
 
         // ตรวจสอบรหัสผ่าน
+        console.log('🔐 Comparing password...');
         const passwordMatch = await bcrypt.compare(password, user.password_hash);
+        console.log('🔐 Password match:', passwordMatch);
 
         if (!passwordMatch) {
+            console.log('❌ Password mismatch');
             return res.status(401).json({ error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' });
         }
 
@@ -716,6 +744,122 @@ app.get('/api/health', (req, res) => {
         timestamp: new Date().toISOString(),
         version: '2.0.0 - With Authentication System'
     });
+});
+
+// 🔧 Debug endpoint - สร้าง default users (ใช้เฉพาะตอน debug)
+app.post('/api/create-default-users', async (req, res) => {
+    try {
+        console.log('🔧 Manual user creation requested...');
+        
+        // สร้างตาราง users ก่อน
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS x_crmsystem.users (
+                id SERIAL PRIMARY KEY,
+                username VARCHAR(50) UNIQUE NOT NULL,
+                password_hash VARCHAR(255) NOT NULL,
+                full_name VARCHAR(100) NOT NULL,
+                email VARCHAR(100),
+                role VARCHAR(20) DEFAULT 'user',
+                is_active BOOLEAN DEFAULT true,
+                last_login TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // สร้าง default users
+        const defaultUsers = [
+            { username: 'admin', password: 'password123', full_name: 'System Administrator', role: 'admin' },
+            { username: 'puri', password: 'password123', full_name: 'Puri (Manager)', role: 'manager' },
+            { username: 'aui', password: 'password123', full_name: 'Aui (Sales)', role: 'user' },
+            { username: 'ink', password: 'password123', full_name: 'Ink (Sales)', role: 'user' }
+        ];
+
+        const results = [];
+        for (const user of defaultUsers) {
+            try {
+                const hashedPassword = await bcrypt.hash(user.password, 10);
+                await pool.query(
+                    `INSERT INTO x_crmsystem.users (username, password_hash, full_name, role) 
+                     VALUES ($1, $2, $3, $4)`,
+                    [user.username, hashedPassword, user.full_name, user.role]
+                );
+                results.push(`✅ Created: ${user.username}`);
+            } catch (err) {
+                if (err.code === '23505') { // Duplicate key error
+                    results.push(`⚠️ Exists: ${user.username}`);
+                } else {
+                    results.push(`❌ Error creating ${user.username}: ${err.message}`);
+                }
+            }
+        }
+
+        // ตรวจสอบ users ที่มี
+        const allUsers = await pool.query('SELECT username, role, is_active, created_at FROM x_crmsystem.users ORDER BY username');
+        
+        res.json({
+            message: 'User creation completed',
+            results: results,
+            current_users: allUsers.rows
+        });
+
+    } catch (error) {
+        console.error('Error creating users:', error);
+        res.status(500).json({ 
+            error: 'Failed to create users',
+            details: error.message
+        });
+    }
+});
+
+// 🔧 Debug endpoint - สร้าง user ใหม่ (ใช้เฉพาะตอน debug)
+app.post('/api/auth/register', async (req, res) => {
+    try {
+        const { username, password, full_name, role = 'user' } = req.body;
+        
+        if (!username || !password || !full_name) {
+            return res.status(400).json({ error: 'Missing required fields' });
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+        
+        const result = await pool.query(
+            `INSERT INTO x_crmsystem.users (username, password_hash, full_name, role) 
+             VALUES ($1, $2, $3, $4) RETURNING id, username, full_name, role`,
+            [username, hashedPassword, full_name, role]
+        );
+
+        res.json({
+            message: 'User created successfully',
+            user: result.rows[0]
+        });
+
+    } catch (error) {
+        if (error.code === '23505') { // Duplicate key
+            res.status(400).json({ error: 'Username already exists' });
+        } else {
+            console.error('Register error:', error);
+            res.status(500).json({ error: 'Failed to create user' });
+        }
+    }
+});
+
+// 🔍 Debug endpoint - ดู users ที่มี
+app.get('/api/debug-users', async (req, res) => {
+    try {
+        const users = await pool.query('SELECT id, username, full_name, role, is_active, created_at FROM x_crmsystem.users ORDER BY username');
+        const userCount = await pool.query('SELECT COUNT(*) FROM x_crmsystem.users');
+        
+        res.json({
+            total_users: parseInt(userCount.rows[0].count),
+            users: users.rows
+        });
+    } catch (error) {
+        res.status(500).json({ 
+            error: 'Database error', 
+            details: error.message 
+        });
+    }
 });
 
 // Database info endpoint - เปลี่ยนเป็น protected
