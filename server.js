@@ -134,7 +134,7 @@ const authenticateToken = (req, res, next) => {
 app.post('/api/auth/login', async (req, res) => {
     try {
         const { username, password, rememberMe } = req.body;
-        console.log('🔐 Login attempt:', { username, hasPassword: !!password });
+        console.log('🔍 Login attempt:', { username, hasPassword: !!password });
 
         if (!username || !password) {
             console.log('❌ Missing credentials');
@@ -161,9 +161,9 @@ app.post('/api/auth/login', async (req, res) => {
         console.log('👤 User found:', { id: user.id, username: user.username, role: user.role });
 
         // ตรวจสอบรหัสผ่าน
-        console.log('🔐 Comparing password...');
+        console.log('🔍 Comparing password...');
         const passwordMatch = await bcrypt.compare(password, user.password_hash);
-        console.log('🔐 Password match:', passwordMatch);
+        console.log('🔍 Password match:', passwordMatch);
 
         if (!passwordMatch) {
             console.log('❌ Password mismatch');
@@ -197,6 +197,7 @@ app.post('/api/auth/login', async (req, res) => {
             role: user.role
         };
 
+        console.log('✅ Login successful for user:', user.username);
         res.json({
             message: 'เข้าสู่ระบบสำเร็จ',
             token: token,
@@ -257,7 +258,58 @@ app.post('/api/auth/logout', authenticateToken, async (req, res) => {
     }
 });
 
-// ✅ Protected Routes - เพิ่ม authenticateToken middleware ให้ API routes ที่สำคัญ
+// 🔐 POST /api/auth/change-password - เปลี่ยนรหัสผ่าน
+app.post('/api/auth/change-password', authenticateToken, async (req, res) => {
+    try {
+        const { oldPassword, newPassword } = req.body;
+
+        if (!oldPassword || !newPassword) {
+            return res.status(400).json({ error: 'กรุณากรอกรหัสผ่านเดิมและรหัสผ่านใหม่' });
+        }
+
+        if (newPassword.length < 6) {
+            return res.status(400).json({ error: 'รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร' });
+        }
+
+        // ดึงรหัสผ่านปัจจุบัน
+        const userQuery = `
+            SELECT id, password_hash 
+            FROM x_crmsystem.users 
+            WHERE id = $1 AND is_active = true
+        `;
+        
+        const userResult = await pool.query(userQuery, [req.user.id]);
+
+        if (userResult.rows.length === 0) {
+            return res.status(404).json({ error: 'ไม่พบข้อมูลผู้ใช้' });
+        }
+
+        const user = userResult.rows[0];
+
+        // ตรวจสอบรหัสผ่านเดิม
+        const passwordMatch = await bcrypt.compare(oldPassword, user.password_hash);
+
+        if (!passwordMatch) {
+            return res.status(400).json({ error: 'รหัสผ่านเดิมไม่ถูกต้อง' });
+        }
+
+        // Hash รหัสผ่านใหม่
+        const saltRounds = 10;
+        const newPasswordHash = await bcrypt.hash(newPassword, saltRounds);
+
+        // อัพเดตรหัสผ่านในฐานข้อมูล
+        await pool.query(
+            'UPDATE x_crmsystem.users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+            [newPasswordHash, req.user.id]
+        );
+
+        res.json({ message: 'เปลี่ยนรหัสผ่านสำเร็จ' });
+
+    } catch (error) {
+        console.error('Change password error:', error);
+        res.status(500).json({ error: 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์' });
+    }
+});
 
 // Helper function to update contract_value when quotation_amount is provided
 async function updateContractValueFromQuotation(customerId, quotationAmount) {
@@ -277,9 +329,29 @@ async function updateContractValueFromQuotation(customerId, quotationAmount) {
     }
 }
 
-// Root route - ไม่ต้องป้องกัน
+// ✅ Static File Routes for Vercel
+app.get('/login.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+app.get('/style.css', (req, res) => {
+    res.setHeader('Content-Type', 'text/css');
+    res.sendFile(path.join(__dirname, 'public', 'style.css'));
+});
+
+app.get('/script.js', (req, res) => {
+    res.setHeader('Content-Type', 'application/javascript');
+    res.sendFile(path.join(__dirname, 'public', 'script.js'));
+});
+
+app.get('/auth.js', (req, res) => {
+    res.setHeader('Content-Type', 'application/javascript');
+    res.sendFile(path.join(__dirname, 'public', 'auth.js'));
+});
+
+// Root route should redirect to login
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
 // ✅ Protected API Routes - เพิ่ม authenticateToken
@@ -497,7 +569,7 @@ app.get('/api/tasks/:id', authenticateToken, async (req, res) => {
     }
 });
 
-// ✅ POST endpoint สำหรับสร้าง Task ใหม่ (ที่หายไป)
+// ✅ POST endpoint สำหรับสร้าง Task ใหม่
 app.post('/api/customers/:id/tasks', authenticateToken, async (req, res) => {
     const customerId = req.params.id;
     const {
@@ -550,6 +622,20 @@ app.put('/api/tasks/:id', authenticateToken, async (req, res) => {
 
 // ✅ Protected Contact logs API routes
 app.get('/api/customers/:id/contacts', authenticateToken, async (req, res) => {
+    const customerId = req.params.id;
+    try {
+        const result = await pool.query(
+            'SELECT * FROM x_crmsystem.contact_logs WHERE customer_id = $1 ORDER BY contact_date DESC', 
+            [customerId]
+        );
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Contact logs error:', err);
+        res.status(500).json({ error: 'Failed to get contact logs: ' + err.message });
+    }
+});
+
+app.get('/api/customers/:id/contact_logs', authenticateToken, async (req, res) => {
     const customerId = req.params.id;
     try {
         const result = await pool.query(
@@ -971,8 +1057,9 @@ module.exports = app;
 if (require.main === module) {
     app.listen(port, () => {
         console.log(`🚀 Server running at http://localhost:${port}`);
-        console.log(`🔐 Environment: ${process.env.NODE_ENV || 'development'}`);
+        console.log(`🔍 Environment: ${process.env.NODE_ENV || 'development'}`);
         console.log('✅ CRM System v2.0.0 - With Authentication System');
-        console.log('🔑 Default users created: admin, puri, aui, ink (password: password123)');
+        console.log('🔒 Default users created: admin, puri, aui, ink (password: password123)');
+        console.log('💾 Database ready for connections');
     });
 }
