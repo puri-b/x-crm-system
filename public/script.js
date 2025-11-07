@@ -811,7 +811,7 @@ async function viewCustomer(customerId) {
         // โหลดประวัติการติดต่อพร้อมกับข้อมูลลูกค้า
         let contacts = [];
         try {
-            const contactsResponse = await fetch(`/api/customers/${customerId}/contacts`);
+            const contactsResponse = await fetch(`/api/customers/${customerId}/contact_logs`);
             contacts = await contactsResponse.json();
             
             // อัพเดต quotation status ถ้าไม่มี
