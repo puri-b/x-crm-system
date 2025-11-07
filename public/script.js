@@ -806,31 +806,36 @@ async function viewCustomer(customerId) {
                 alert('ไม่สามารถโหลดข้อมูลลูกค้าได้');
                 return;
             }
+        }
+        
+        // โหลดประวัติการติดต่อพร้อมกับข้อมูลลูกค้า
+        let contacts = [];
+        try {
+            const contactsResponse = await fetch(`/api/customers/${customerId}/contacts`);
+            contacts = await contactsResponse.json();
             
-            // เพิ่มข้อมูล quotation status ถ้าไม่มี
-            if (!customer.quotation_status) {
-                try {
-                    const contactsResponse = await fetch(`/api/customers/${customerId}/contacts`);
-                    const contacts = await contactsResponse.json();
-                    
-                    const quotationContacts = contacts.filter(contact => 
-                        contact.quotation_status && contact.quotation_status !== 'ไม่เสนอราคา'
-                    );
-                    
-                    if (quotationContacts.length > 0) {
-                        quotationContacts.sort((a, b) => new Date(b.contact_date) - new Date(a.contact_date));
-                        customer.quotation_status = quotationContacts[0].quotation_status;
-                        customer.quotation_amount = quotationContacts[0].quotation_amount;
-                    } else {
-                        customer.quotation_status = 'ยังไม่เสนอราคา';
-                    }
-                } catch (error) {
-                    customer.quotation_status = 'ไม่ทราบ';
+            // อัพเดต quotation status ถ้าไม่มี
+            if (!customer.quotation_status && contacts.length > 0) {
+                const quotationContacts = contacts.filter(contact => 
+                    contact.quotation_status && contact.quotation_status !== 'ไม่เสนอราคา'
+                );
+                
+                if (quotationContacts.length > 0) {
+                    quotationContacts.sort((a, b) => new Date(b.contact_date) - new Date(a.contact_date));
+                    customer.quotation_status = quotationContacts[0].quotation_status;
+                    customer.quotation_amount = quotationContacts[0].quotation_amount;
+                } else {
+                    customer.quotation_status = 'ยังไม่เสนอราคา';
                 }
+            }
+        } catch (error) {
+            console.error('Error loading contacts:', error);
+            if (!customer.quotation_status) {
+                customer.quotation_status = 'ไม่ทราบ';
             }
         }
         
-        showCustomerDetail(customer);
+        showCustomerDetail(customer, contacts);
         
     } catch (error) {
         console.error('Error:', error);
