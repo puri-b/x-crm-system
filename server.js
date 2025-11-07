@@ -3,10 +3,16 @@ const { Pool } = require('pg');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const path = require('path');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 const app = express();
 const port = process.env.PORT || 3000;
+
+// ✅ เพิ่ม JWT Secret
+const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-key-change-in-production';
+const JWT_EXPIRES_IN = '1h';
 
 app.use(cors());
 app.use(bodyParser.json());
@@ -30,10 +36,200 @@ const pool = new Pool({
 pool.connect()
     .then(() => {
         console.log('Connected to PostgreSQL database');
+        // ✅ สร้างตาราง users หากยังไม่มี
+        createUsersTableIfNotExists();
     })
     .catch(err => {
         console.error('Database connection error:', err);
     });
+
+// ✅ สร้างตาราง users และ default users
+async function createUsersTableIfNotExists() {
+    try {
+        // สร้างตาราง users
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS x_crmsystem.users (
+                id SERIAL PRIMARY KEY,
+                username VARCHAR(50) UNIQUE NOT NULL,
+                password_hash VARCHAR(255) NOT NULL,
+                full_name VARCHAR(100) NOT NULL,
+                email VARCHAR(100),
+                role VARCHAR(20) DEFAULT 'user',
+                is_active BOOLEAN DEFAULT true,
+                last_login TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // ตรวจสอบว่ามี users อยู่หรือไม่
+        const userCount = await pool.query('SELECT COUNT(*) FROM x_crmsystem.users');
+        
+        if (parseInt(userCount.rows[0].count) === 0) {
+            console.log('Creating default users...');
+            
+            // สร้าง default users
+            const defaultUsers = [
+                { username: 'admin', password: 'password123', full_name: 'System Administrator', role: 'admin' },
+                { username: 'puri', password: 'password123', full_name: 'Puri (Manager)', role: 'manager' },
+                { username: 'aui', password: 'password123', full_name: 'Aui (Sales)', role: 'user' },
+                { username: 'ink', password: 'password123', full_name: 'Ink (Sales)', role: 'user' }
+            ];
+
+            for (const user of defaultUsers) {
+                const hashedPassword = await bcrypt.hash(user.password, 10);
+                await pool.query(
+                    `INSERT INTO x_crmsystem.users (username, password_hash, full_name, role) 
+                     VALUES ($1, $2, $3, $4)`,
+                    [user.username, hashedPassword, user.full_name, user.role]
+                );
+            }
+            
+            console.log('✅ Default users created successfully');
+        }
+    } catch (error) {
+        console.error('Error creating users table:', error);
+    }
+}
+
+// ✅ Middleware สำหรับตรวจสอบ JWT Token
+const authenticateToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+        return res.status(401).json({ error: 'Access token required' });
+    }
+
+    jwt.verify(token, JWT_SECRET, (err, user) => {
+        if (err) {
+            return res.status(403).json({ error: 'Invalid or expired token' });
+        }
+        req.user = user;
+        next();
+    });
+};
+
+// ✅ Authentication Routes
+// 🔐 POST /api/auth/login - เข้าสู่ระบบ
+app.post('/api/auth/login', async (req, res) => {
+    try {
+        const { username, password, rememberMe } = req.body;
+
+        if (!username || !password) {
+            return res.status(400).json({ error: 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน' });
+        }
+
+        // ค้นหาผู้ใช้ในฐานข้อมูล
+        const userQuery = `
+            SELECT id, username, password_hash, full_name, email, role, is_active
+            FROM x_crmsystem.users 
+            WHERE username = $1 AND is_active = true
+        `;
+        
+        const userResult = await pool.query(userQuery, [username]);
+
+        if (userResult.rows.length === 0) {
+            return res.status(401).json({ error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' });
+        }
+
+        const user = userResult.rows[0];
+
+        // ตรวจสอบรหัสผ่าน
+        const passwordMatch = await bcrypt.compare(password, user.password_hash);
+
+        if (!passwordMatch) {
+            return res.status(401).json({ error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' });
+        }
+
+        // อัพเดต last_login
+        await pool.query(
+            'UPDATE x_crmsystem.users SET last_login = CURRENT_TIMESTAMP WHERE id = $1',
+            [user.id]
+        );
+
+        // สร้าง JWT Token
+        const tokenExpiration = rememberMe ? '7d' : JWT_EXPIRES_IN;
+        const token = jwt.sign(
+            { 
+                id: user.id,
+                username: user.username,
+                role: user.role 
+            },
+            JWT_SECRET,
+            { expiresIn: tokenExpiration }
+        );
+
+        // ส่งข้อมูลกลับ (ไม่รวมรหัสผ่าน)
+        const userResponse = {
+            id: user.id,
+            username: user.username,
+            full_name: user.full_name,
+            email: user.email,
+            role: user.role
+        };
+
+        res.json({
+            message: 'เข้าสู่ระบบสำเร็จ',
+            token: token,
+            user: userResponse
+        });
+
+    } catch (error) {
+        console.error('Login error:', error);
+        res.status(500).json({ error: 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์' });
+    }
+});
+
+// 🔐 POST /api/auth/validate - ตรวจสอบความถูกต้องของ Token
+app.post('/api/auth/validate', authenticateToken, async (req, res) => {
+    try {
+        // ดึงข้อมูลผู้ใช้ล่าสุดจากฐานข้อมูล
+        const userQuery = `
+            SELECT id, username, full_name, email, role, is_active, last_login
+            FROM x_crmsystem.users 
+            WHERE id = $1 AND is_active = true
+        `;
+        
+        const userResult = await pool.query(userQuery, [req.user.id]);
+
+        if (userResult.rows.length === 0) {
+            return res.status(401).json({ error: 'ผู้ใช้ไม่ถูกต้องหรือถูกระงับการใช้งาน' });
+        }
+
+        const user = userResult.rows[0];
+        
+        res.json({
+            valid: true,
+            user: {
+                id: user.id,
+                username: user.username,
+                full_name: user.full_name,
+                email: user.email,
+                role: user.role,
+                last_login: user.last_login
+            }
+        });
+
+    } catch (error) {
+        console.error('Token validation error:', error);
+        res.status(500).json({ error: 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์' });
+    }
+});
+
+// 🔐 POST /api/auth/logout - ออกจากระบบ
+app.post('/api/auth/logout', authenticateToken, async (req, res) => {
+    try {
+        // ในระบบที่ซับซ้อนกว่านี้ อาจจะต้องเพิ่ม token ลงใน blacklist
+        // แต่สำหรับระบบนี้ เราจะให้ client ลบ token เอง
+        res.json({ message: 'ออกจากระบบสำเร็จ' });
+    } catch (error) {
+        console.error('Logout error:', error);
+        res.status(500).json({ error: 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์' });
+    }
+});
+
+// ✅ Protected Routes - เพิ่ม authenticateToken middleware ให้ API routes ที่สำคัญ
 
 // Helper function to update contract_value when quotation_amount is provided
 async function updateContractValueFromQuotation(customerId, quotationAmount) {
@@ -53,13 +249,13 @@ async function updateContractValueFromQuotation(customerId, quotationAmount) {
     }
 }
 
-// Root route
+// Root route - ไม่ต้องป้องกัน
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// API Routes
-app.get('/api/customers', async (req, res) => {
+// ✅ Protected API Routes - เพิ่ม authenticateToken
+app.get('/api/customers', authenticateToken, async (req, res) => {
     try {
         const result = await pool.query('SELECT * FROM x_crmsystem.customers ORDER BY created_at DESC');
         console.log('Customers found:', result.rows.length);
@@ -70,8 +266,8 @@ app.get('/api/customers', async (req, res) => {
     }
 });
 
-// ✅ New optimized endpoint for getting all contacts at once
-app.get('/api/customers/contacts/all', async (req, res) => {
+// ✅ Protected: New optimized endpoint for getting all contacts at once
+app.get('/api/customers/contacts/all', authenticateToken, async (req, res) => {
     try {
         const result = await pool.query(`
             SELECT customer_id, id, contact_date, quotation_status, quotation_amount 
@@ -87,7 +283,7 @@ app.get('/api/customers/contacts/all', async (req, res) => {
     }
 });
 
-app.get('/api/customers/:id', async (req, res) => {
+app.get('/api/customers/:id', authenticateToken, async (req, res) => {
     const customerId = req.params.id;
     try {
         const result = await pool.query('SELECT * FROM x_crmsystem.customers WHERE id = $1', [customerId]);
@@ -101,7 +297,8 @@ app.get('/api/customers/:id', async (req, res) => {
         res.status(500).json({ error: 'Database error: ' + err.message });
     }
 });
-app.post('/api/customers', async (req, res) => {
+
+app.post('/api/customers', authenticateToken, async (req, res) => {
     const {
         company_name, location, registration_info, business_type,
         contact_names, phone_number, contact_history,
@@ -137,7 +334,7 @@ app.post('/api/customers', async (req, res) => {
     }
 });
 
-app.put('/api/customers/:id', async (req, res) => {
+app.put('/api/customers/:id', authenticateToken, async (req, res) => {
     const customerId = req.params.id;
     const {
         company_name, location, registration_info, business_type,
@@ -175,7 +372,7 @@ app.put('/api/customers/:id', async (req, res) => {
     }
 });
 
-app.delete('/api/customers/:id', async (req, res) => {
+app.delete('/api/customers/:id', authenticateToken, async (req, res) => {
     const customerId = req.params.id;
     try {
         console.log('Deleting customer:', customerId);
@@ -192,8 +389,9 @@ app.delete('/api/customers/:id', async (req, res) => {
         res.status(500).json({ error: 'Database error: ' + err.message });
     }
 });
-// Tasks API routes
-app.get('/api/tasks', async (req, res) => {
+
+// ✅ Protected Tasks API routes
+app.get('/api/tasks', authenticateToken, async (req, res) => {
     try {
         const result = await pool.query(`
             SELECT t.*, c.company_name 
@@ -208,7 +406,7 @@ app.get('/api/tasks', async (req, res) => {
     }
 });
 
-app.get('/api/tasks/dashboard', async (req, res) => {
+app.get('/api/tasks/dashboard', authenticateToken, async (req, res) => {
     try {
         const today = new Date().toISOString().split('T')[0];
         
@@ -250,7 +448,7 @@ app.get('/api/tasks/dashboard', async (req, res) => {
 });
 
 // Get single task
-app.get('/api/tasks/:id', async (req, res) => {
+app.get('/api/tasks/:id', authenticateToken, async (req, res) => {
     const taskId = req.params.id;
     try {
         const result = await pool.query(`
@@ -272,7 +470,7 @@ app.get('/api/tasks/:id', async (req, res) => {
 });
 
 // ✅ POST endpoint สำหรับสร้าง Task ใหม่ (ที่หายไป)
-app.post('/api/customers/:id/tasks', async (req, res) => {
+app.post('/api/customers/:id/tasks', authenticateToken, async (req, res) => {
     const customerId = req.params.id;
     const {
         title, description, task_type, priority, assigned_to,
@@ -298,7 +496,7 @@ app.post('/api/customers/:id/tasks', async (req, res) => {
     }
 });
 
-app.put('/api/tasks/:id', async (req, res) => {
+app.put('/api/tasks/:id', authenticateToken, async (req, res) => {
     const taskId = req.params.id;
     const { status, completed_at } = req.body;
 
@@ -321,8 +519,9 @@ app.put('/api/tasks/:id', async (req, res) => {
         res.status(500).json({ error: 'Failed to update task: ' + err.message });
     }
 });
-// Contact logs API routes
-app.get('/api/customers/:id/contacts', async (req, res) => {
+
+// ✅ Protected Contact logs API routes
+app.get('/api/customers/:id/contacts', authenticateToken, async (req, res) => {
     const customerId = req.params.id;
     try {
         const result = await pool.query(
@@ -337,7 +536,7 @@ app.get('/api/customers/:id/contacts', async (req, res) => {
 });
 
 // Get single contact
-app.get('/api/contacts/:id', async (req, res) => {
+app.get('/api/contacts/:id', authenticateToken, async (req, res) => {
     const contactId = req.params.id;
     try {
         const result = await pool.query(
@@ -356,7 +555,7 @@ app.get('/api/contacts/:id', async (req, res) => {
 });
 
 // ✅ Update contact - แก้ไขให้รองรับ quotation_status และ quotation_amount พร้อมอัพเดต contract_value
-app.put('/api/contacts/:id', async (req, res) => {
+app.put('/api/contacts/:id', authenticateToken, async (req, res) => {
     const contactId = req.params.id;
     const {
         contact_type, contact_status, contact_method, contact_person,
@@ -412,7 +611,7 @@ app.put('/api/contacts/:id', async (req, res) => {
 });
 
 // Delete contact
-app.delete('/api/contacts/:id', async (req, res) => {
+app.delete('/api/contacts/:id', authenticateToken, async (req, res) => {
     const contactId = req.params.id;
     try {
         const result = await pool.query(
@@ -432,7 +631,7 @@ app.delete('/api/contacts/:id', async (req, res) => {
 });
 
 // ✅ แก้ไขการจัดการเวลาในการบันทึกการติดต่อ - รองรับ quotation_status และ quotation_amount พร้อมอัพเดต contract_value
-app.post('/api/customers/:id/contacts', async (req, res) => {
+app.post('/api/customers/:id/contacts', authenticateToken, async (req, res) => {
     const customerId = req.params.id;
     const {
         contact_type, contact_status, contact_method, contact_person,
@@ -508,17 +707,19 @@ app.post('/api/customers/:id/contacts', async (req, res) => {
         client.release();
     }
 });
+
+// ✅ Public Routes (ไม่ต้องใส่ authenticateToken)
 // Health check endpoint
 app.get('/api/health', (req, res) => {
     res.json({ 
         status: 'OK', 
         timestamp: new Date().toISOString(),
-        version: '1.4.0' // Updated version with Tasks fix
+        version: '2.0.0 - With Authentication System'
     });
 });
 
-// Database info endpoint
-app.get('/api/info', async (req, res) => {
+// Database info endpoint - เปลี่ยนเป็น protected
+app.get('/api/info', authenticateToken, async (req, res) => {
     try {
         const [customersCount, tasksCount, contactsCount] = await Promise.all([
             pool.query('SELECT COUNT(*) FROM x_crmsystem.customers'),
@@ -538,8 +739,8 @@ app.get('/api/info', async (req, res) => {
     }
 });
 
-// Statistics endpoint
-app.get('/api/stats', async (req, res) => {
+// Statistics endpoint - เปลี่ยนเป็น protected
+app.get('/api/stats', authenticateToken, async (req, res) => {
     try {
         const [
             totalCustomers,
@@ -625,8 +826,9 @@ module.exports = app;
 // Only listen when running locally
 if (require.main === module) {
     app.listen(port, () => {
-        console.log(`Server running at http://localhost:${port}`);
-        console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-        console.log('CRM System v1.4.0 - Fixed Task Creation Issue');
+        console.log(`🚀 Server running at http://localhost:${port}`);
+        console.log(`🔐 Environment: ${process.env.NODE_ENV || 'development'}`);
+        console.log('✅ CRM System v2.0.0 - With Authentication System');
+        console.log('🔑 Default users created: admin, puri, aui, ink (password: password123)');
     });
 }
