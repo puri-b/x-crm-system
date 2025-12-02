@@ -1114,11 +1114,9 @@ async function showContactModal(customerId) {
                                             <label class="form-label">ประเภทการติดต่อ *</label>
                                             <select class="form-select" name="contact_type" required>
                                                 <option value="">เลือกประเภท</option>
-                                                <option value="เริ่มต้น">เริ่มต้น</option>
                                                 <option value="ติดตาม">ติดตาม</option>
                                                 <option value="นำเสนอ">นำเสนอ</option>
                                                 <option value="เจรจา">เจรจา</option>
-                                                <option value="ปิดการขาย">ปิดการขาย</option>
                                             </select>
                                         </div>
                                         <div class="mb-3">
@@ -1428,11 +1426,9 @@ function showEditContactModal(contact) {
                                 <label class="form-label">ประเภทการติดต่อ *</label>
                                 <select class="form-select" name="contact_type" required>
                                     <option value="">เลือกประเภท</option>
-                                    <option value="เริ่มต้น" ${contact.contact_type === 'เริ่มต้น' ? 'selected' : ''}>เริ่มต้น</option>
                                     <option value="ติดตาม" ${contact.contact_type === 'ติดตาม' ? 'selected' : ''}>ติดตาม</option>
                                     <option value="นำเสนอ" ${contact.contact_type === 'นำเสนอ' ? 'selected' : ''}>นำเสนอ</option>
                                     <option value="เจรจา" ${contact.contact_type === 'เจรจา' ? 'selected' : ''}>เจรจา</option>
-                                    <option value="ปิดการขาย" ${contact.contact_type === 'ปิดการขาย' ? 'selected' : ''}>ปิดการขาย</option>
                                 </select>
                             </div>
                             <div class="mb-3">
