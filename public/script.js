@@ -211,7 +211,9 @@ async function addCustomer() {
         email: formData.get('email'),
         lead_source: formData.get('lead_source'),
         sales_person: formData.get('sales_person'),
-        customer_status: formData.get('customer_status')
+        customer_status: formData.get('customer_status'),
+        search_keyword: formData.get('search_keyword') ,
+        no_quotation_reason: formData.get('no_quotation_reason')
     };
 
     // Show loading
@@ -1021,6 +1023,8 @@ async function updateCustomer(customerId) {
         lead_source: formData.get('lead_source'),
         sales_person: formData.get('sales_person'),
         customer_status: formData.get('customer_status')
+        search_keyword: formData.get('search_keyword') ,
+        no_quotation_reason: formData.get('no_quotation_reason')
     };
 
     try {

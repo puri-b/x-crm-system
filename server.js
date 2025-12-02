@@ -106,7 +106,9 @@ app.post('/api/customers', async (req, res) => {
         company_name, location, registration_info, business_type,
         contact_names, phone_number, contact_history,
         budget, required_products, pain_points,
-        contract_value, email, lead_source, sales_person, customer_status
+        contract_value, email, lead_source, sales_person, customer_status,
+        search_keyword,          
+        no_quotation_reason       
     } = req.body;
 
     try {
@@ -121,13 +123,15 @@ app.post('/api/customers', async (req, res) => {
             (company_name, location, registration_info, business_type,
              contact_names, phone_number, contact_history,
              budget, required_products, pain_points,
-             contract_value, email, lead_source, sales_person, customer_status)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+             contract_value, email, lead_source, sales_person, customer_status,
+             search_keyword, no_quotation_reason)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
             RETURNING *`,
             [company_name, location, registration_info, business_type,
              contact_names, phone_number, contact_history,
              budget, safeRequiredProducts, pain_points,
-             contract_value, email, safeLeadSource, sales_person, customer_status]
+             contract_value, email, safeLeadSource, sales_person, customer_status,
+             search_keyword, no_quotation_reason]
         );
         console.log('Customer inserted successfully');
         res.json(result.rows[0]);
@@ -143,25 +147,32 @@ app.put('/api/customers/:id', async (req, res) => {
         company_name, location, registration_info, business_type,
         contact_names, phone_number, contact_history,
         budget, required_products, pain_points,
-        contract_value, email, lead_source, sales_person, customer_status
+        contract_value, email, lead_source, sales_person, customer_status,
+        search_keyword,            // ✅ ใหม่
+        no_quotation_reason        // ✅ ใหม่
     } = req.body;
+
 
     try {
         console.log('Updating customer:', customerId);
-        const result = await pool.query(
+                const result = await pool.query(
             `UPDATE x_crmsystem.customers 
             SET company_name = $1, location = $2, registration_info = $3, business_type = $4, 
                 contact_names = $5, phone_number = $6, contact_history = $7, budget = $8, 
                 required_products = $9, pain_points = $10, contract_value = $11, 
                 email = $12, lead_source = $13, sales_person = $14, customer_status = $15,
+                search_keyword = $16, no_quotation_reason = $17,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = $16
+            WHERE id = $18
             RETURNING *`,
             [company_name, location, registration_info, business_type,
              contact_names, phone_number, contact_history, budget,
              required_products, pain_points, contract_value,
-             email, lead_source, sales_person, customer_status, customerId]
+             email, lead_source, sales_person, customer_status,
+             search_keyword, no_quotation_reason,
+             customerId]
         );
+
         
         if (result.rows.length === 0) {
             res.status(404).json({ error: 'Customer not found' });
