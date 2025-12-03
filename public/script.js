@@ -1124,11 +1124,11 @@ async function showContactModal(customerId) {
                                             <select class="form-select" name="contact_status" required>
                                                 <option value="">เลือกสถานะ</option>
                                                 <option value="ติดต่อสำเร็จ">ติดต่อสำเร็จ</option>
-                                                <option value="ติดต่อไม่สำเร็จ">ติดต่อไม่สำเร็จ/option>
+                                                <option value="ติดต่อไม่สำเร็จ">ติดต่อไม่สำเร็จ</option>
                                             </select>
                                         </div>
                                         <div class="mb-3">
-                                            <label class="form-label">การเสนอราคา *</label>
+                                            <label class="form-label">การเสนอราคา *(กรณีเลือกไม่เสนอราคา ต้องระบุเหตุผลในหมายเหตุ)</label>
                                             <select class="form-select" name="quotation_status" required>
                                                 <option value="ไม่เสนอราคา">ไม่เสนอราคา</option>
                                                 <option value="เสนอราคาแล้ว">เสนอราคาแล้ว</option>
@@ -1431,7 +1431,7 @@ function showEditContactModal(contact) {
                                 </select>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label">การเสนอราคา *</label>
+                                <label class="form-label">การเสนอราคา *(กรณีเลือกไม่เสนอราคา ต้องระบุเหตุผลในหมายเหตุ)</label>
                                 <select class="form-select" name="quotation_status" id="editQuotationStatus" required>
                                     <option value="ไม่เสนอราคา" ${(!contact.quotation_status || contact.quotation_status === 'ไม่เสนอราคา') ? 'selected' : ''}>ไม่เสนอราคา</option>
                                     <option value="เสนอราคาแล้ว" ${contact.quotation_status === 'เสนอราคาแล้ว' ? 'selected' : ''}>เสนอราคาแล้ว</option>
