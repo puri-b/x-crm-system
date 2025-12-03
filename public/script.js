@@ -1164,7 +1164,7 @@ async function showContactModal(customerId) {
                                         </div>
                                         <div class="mb-3">
                                             <label class="form-label">หมายเหตุ</label>
-                                            <textarea class="form-control" name="notes" rows="2" placeholder="หมายเหตุเพิ่มเติม"></textarea>
+                                            <textarea class="form-control" name="notes" rows="2" placeholder="หมายเหตุเพิ่มเติม กรณีไม่เสนอราคาให้ระบุที่นี่"></textarea>
                                         </div>
                                         <div class="mb-3">
                                             <label class="form-label">อัพเดตสถานะลูกค้า</label>
@@ -1467,7 +1467,7 @@ function showEditContactModal(contact) {
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">หมายเหตุ</label>
-                                <textarea class="form-control" name="notes" rows="2" placeholder="หมายเหตุเพิ่มเติม">${contact.notes || ''}</textarea>
+                                <textarea class="form-control" name="notes" rows="2" placeholder="หมายเหตุเพิ่มเติม กรณีไม่เสนอราคาให้ระบุที่นี่">${contact.notes || ''}</textarea>
                             </div>
                         </form>
                     </div>
