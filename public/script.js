@@ -1123,13 +1123,8 @@ async function showContactModal(customerId) {
                                             <label class="form-label">สถานะ *</label>
                                             <select class="form-select" name="contact_status" required>
                                                 <option value="">เลือกสถานะ</option>
-                                                <option value="สนใจ">สนใจ</option>
-                                                <option value="รอพิจารณา">รอพิจารณา</option>
-                                                <option value="นัดหมาย">นัดหมาย</option>
-                                                <option value="เจรจา">เจรจา</option>
-                                                <option value="สำเร็จ">สำเร็จ</option>
-                                                <option value="ไม่สำเร็จ">ไม่สำเร็จ</option>
-                                                <option value="รอติดตาม">รอติดตาม</option>
+                                                <option value="ติดต่อสำเร็จ">ติดต่อสำเร็จ</option>
+                                                <option value="ติดต่อไม่สำเร็จ">ติดต่อไม่สำเร็จ/option>
                                             </select>
                                         </div>
                                         <div class="mb-3">
@@ -1137,10 +1132,6 @@ async function showContactModal(customerId) {
                                             <select class="form-select" name="quotation_status" required>
                                                 <option value="ไม่เสนอราคา">ไม่เสนอราคา</option>
                                                 <option value="เสนอราคาแล้ว">เสนอราคาแล้ว</option>
-                                                <option value="รอตอบกลับ">รอตอบกลับ</option>
-                                                <option value="อนุมัติราคา">อนุมัติราคา</option>
-                                                <option value="ไม่อนุมัติราคา">ไม่อนุมัติราคา</option>
-                                                <option value="ต่อรองราคา">ต่อรองราคา</option>
                                             </select>
                                         </div>
                                         <div class="mb-3" id="quotationAmountDiv" style="display: none;">
@@ -1428,20 +1419,15 @@ function showEditContactModal(contact) {
                                     <option value="">เลือกประเภท</option>
                                     <option value="ติดตาม" ${contact.contact_type === 'ติดตาม' ? 'selected' : ''}>ติดตาม</option>
                                     <option value="นำเสนอ" ${contact.contact_type === 'นำเสนอ' ? 'selected' : ''}>นำเสนอ</option>
-                                    <option value="เจรจา" ${contact.contact_type === 'เจรจา' ? 'selected' : ''}>เจรจา</option>
+                                    <option value="เจรจาต่อรอง" ${contact.contact_type === 'เจรจาต่อรอง' ? 'selected' : ''}>เจรจาต่อรอง</option>
                                 </select>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">สถานะ *</label>
                                 <select class="form-select" name="contact_status" required>
                                     <option value="">เลือกสถานะ</option>
-                                    <option value="สนใจ" ${contact.contact_status === 'สนใจ' ? 'selected' : ''}>สนใจ</option>
-                                    <option value="รอพิจารณา" ${contact.contact_status === 'รอพิจารณา' ? 'selected' : ''}>รอพิจารณา</option>
-                                    <option value="นัดหมาย" ${contact.contact_status === 'นัดหมาย' ? 'selected' : ''}>นัดหมาย</option>
-                                    <option value="เจรจา" ${contact.contact_status === 'เจรจา' ? 'selected' : ''}>เจรจา</option>
-                                    <option value="สำเร็จ" ${contact.contact_status === 'สำเร็จ' ? 'selected' : ''}>สำเร็จ</option>
-                                    <option value="ไม่สำเร็จ" ${contact.contact_status === 'ไม่สำเร็จ' ? 'selected' : ''}>ไม่สำเร็จ</option>
-                                    <option value="รอติดตาม" ${contact.contact_status === 'รอติดตาม' ? 'selected' : ''}>รอติดตาม</option>
+                                    <option value="ติดต่อสำเร็จ" ${contact.contact_status === 'ติดต่อสำเร็จ' ? 'selected' : ''}>ติดต่อสำเร็จ</option>
+                                    <option value="ติดต่อไม่สำเร็จ" ${contact.contact_status === 'ติดต่อไม่สำเร็จ' ? 'selected' : ''}>ติดต่อไม่สำเร็จ</option>
                                 </select>
                             </div>
                             <div class="mb-3">
@@ -1449,10 +1435,6 @@ function showEditContactModal(contact) {
                                 <select class="form-select" name="quotation_status" id="editQuotationStatus" required>
                                     <option value="ไม่เสนอราคา" ${(!contact.quotation_status || contact.quotation_status === 'ไม่เสนอราคา') ? 'selected' : ''}>ไม่เสนอราคา</option>
                                     <option value="เสนอราคาแล้ว" ${contact.quotation_status === 'เสนอราคาแล้ว' ? 'selected' : ''}>เสนอราคาแล้ว</option>
-                                    <option value="รอตอบกลับ" ${contact.quotation_status === 'รอตอบกลับ' ? 'selected' : ''}>รอตอบกลับ</option>
-                                    <option value="อนุมัติราคา" ${contact.quotation_status === 'อนุมัติราคา' ? 'selected' : ''}>อนุมัติราคา</option>
-                                    <option value="ไม่อนุมัติราคา" ${contact.quotation_status === 'ไม่อนุมัติราคา' ? 'selected' : ''}>ไม่อนุมัติราคา</option>
-                                    <option value="ต่อรองราคา" ${contact.quotation_status === 'ต่อรองราคา' ? 'selected' : ''}>ต่อรองราคา</option>
                                 </select>
                             </div>
                             <div class="mb-3" id="editQuotationAmountDiv" style="display: ${(contact.quotation_status && contact.quotation_status !== 'ไม่เสนอราคา') ? 'block' : 'none'};">
