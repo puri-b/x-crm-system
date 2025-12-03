@@ -101,6 +101,7 @@ app.get('/api/customers/:id', async (req, res) => {
         res.status(500).json({ error: 'Database error: ' + err.message });
     }
 });
+
 app.post('/api/customers', async (req, res) => {
     const {
         company_name, location, registration_info, business_type,
@@ -152,10 +153,9 @@ app.put('/api/customers/:id', async (req, res) => {
         no_quotation_reason        // ✅ ใหม่
     } = req.body;
 
-
     try {
         console.log('Updating customer:', customerId);
-                const result = await pool.query(
+        const result = await pool.query(
             `UPDATE x_crmsystem.customers 
             SET company_name = $1, location = $2, registration_info = $3, business_type = $4, 
                 contact_names = $5, phone_number = $6, contact_history = $7, budget = $8, 
@@ -172,7 +172,6 @@ app.put('/api/customers/:id', async (req, res) => {
              search_keyword, no_quotation_reason,
              customerId]
         );
-
         
         if (result.rows.length === 0) {
             res.status(404).json({ error: 'Customer not found' });
@@ -203,6 +202,7 @@ app.delete('/api/customers/:id', async (req, res) => {
         res.status(500).json({ error: 'Database error: ' + err.message });
     }
 });
+
 // Tasks API routes
 app.get('/api/tasks', async (req, res) => {
     try {
@@ -282,7 +282,7 @@ app.get('/api/tasks/:id', async (req, res) => {
     }
 });
 
-// ✅ POST endpoint สำหรับสร้าง Task ใหม่ (ที่หายไป)
+// ✅ POST endpoint สำหรับสร้าง Task ใหม่
 app.post('/api/customers/:id/tasks', async (req, res) => {
     const customerId = req.params.id;
     const {
@@ -332,6 +332,7 @@ app.put('/api/tasks/:id', async (req, res) => {
         res.status(500).json({ error: 'Failed to update task: ' + err.message });
     }
 });
+
 // Contact logs API routes
 app.get('/api/customers/:id/contacts', async (req, res) => {
     const customerId = req.params.id;
@@ -378,47 +379,71 @@ app.put('/api/contacts/:id', async (req, res) => {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
+        console.log('Starting contact update for ID:', contactId);
 
-        // Update contact log
+        // ✅ ตรวจสอบว่า contact มีอยู่จริง
+        const checkResult = await client.query(
+            'SELECT * FROM x_crmsystem.contact_logs WHERE id = $1',
+            [contactId]
+        );
+        
+        if (checkResult.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'Contact not found' });
+        }
+
+        const existingContact = checkResult.rows[0];
+        console.log('Existing contact found:', existingContact.customer_id);
+
+        // ✅ ปรับปรุงการจัดการเวลาสำหรับการอัพเดต
+        let contactDateTime = contact_date;
+        if (!contactDateTime) {
+            contactDateTime = existingContact.contact_date; // ใช้เวลาเดิม
+        }
+
+        // ✅ อัพเดต contact log
         const contactResult = await client.query(
             `UPDATE x_crmsystem.contact_logs 
             SET contact_type = $1, contact_status = $2, contact_method = $3, 
                 contact_person = $4, contact_details = $5, next_follow_up = $6, 
                 notes = $7, contact_date = $8, quotation_status = $9, 
-                quotation_amount = $10, updated_at = CURRENT_TIMESTAMP
+                quotation_amount = $10, updated_at = NOW()
             WHERE id = $11
             RETURNING *`,
             [contact_type, contact_status, contact_method, contact_person,
-             contact_details, next_follow_up, notes, contact_date, 
-             quotation_status, quotation_amount, contactId]
+             contact_details, next_follow_up || null, notes, contactDateTime, 
+             quotation_status, quotation_amount ? parseFloat(quotation_amount) : null, 
+             contactId]
         );
         
-        if (contactResult.rows.length === 0) {
-            await client.query('ROLLBACK');
-            return res.status(404).json({ error: 'Contact not found' });
-        }
-
-        const contact = contactResult.rows[0];
+        const updatedContact = contactResult.rows[0];
+        console.log('Contact updated successfully');
 
         // ✅ อัพเดต contract_value ถ้ามี quotation_amount
-        if (quotation_amount && quotation_amount > 0) {
+        if (quotation_amount && parseFloat(quotation_amount) > 0) {
             await client.query(
                 `UPDATE x_crmsystem.customers 
-                SET contract_value = $1, updated_at = CURRENT_TIMESTAMP
+                SET contract_value = $1, updated_at = NOW()
                 WHERE id = $2`,
-                [quotation_amount, contact.customer_id]
+                [parseFloat(quotation_amount), updatedContact.customer_id]
             );
-            console.log(`Updated contract_value for customer ${contact.customer_id} to ${quotation_amount} from contact update`);
+            console.log(`Updated contract_value for customer ${updatedContact.customer_id}`);
         }
 
         await client.query('COMMIT');
-        res.json(contact);
+        res.json(updatedContact);
+        
     } catch (err) {
         await client.query('ROLLBACK');
         console.error('Update contact error:', err);
-        res.status(500).json({ error: 'Failed to update contact: ' + err.message });
+        console.error('Error stack:', err.stack);
+        res.status(500).json({ 
+            error: 'Failed to update contact: ' + err.message,
+            details: process.env.NODE_ENV === 'development' ? err.stack : undefined
+        });
     } finally {
         client.release();
+        console.log('Database connection released');
     }
 });
 
@@ -454,39 +479,65 @@ app.post('/api/customers/:id/contacts', async (req, res) => {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-
-        // รับค่า contact_date ที่ส่งมาจาก frontend 
-        // ค่านี้เป็น UTC timestamp ที่แทนค่าเวลาท้องถิ่นที่ user เลือก
+        console.log('Starting contact creation for customer:', customerId);
+        
+        // ✅ ตรวจสอบว่า customer มีอยู่จริง
+        const customerCheck = await client.query(
+            'SELECT id FROM x_crmsystem.customers WHERE id = $1',
+            [customerId]
+        );
+        
+        if (customerCheck.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'Customer not found' });
+        }
+        
+        // ✅ จัดการเวลาอย่างง่าย
         let contactDateTime;
-        if (contact_date) {
-            // ใช้ค่าที่ส่งมาโดยตรง (ไม่แปลง timezone เพิ่ม)
+        if (contact_date && contact_date !== '') {
             contactDateTime = contact_date;
         } else {
-            // ถ้าไม่มีค่าส่งมา ใช้เวลาปัจจุบัน
-            const now = new Date();
-            const timezoneOffset = now.getTimezoneOffset() * 60000;
-            contactDateTime = new Date(now.getTime() - timezoneOffset).toISOString();
+            contactDateTime = new Date().toISOString();
         }
 
-        console.log('Original contact_date from frontend:', contact_date);
-        console.log('Final contactDateTime for database:', contactDateTime);
+        // ✅ ตรวจสอบข้อมูลที่จำเป็น
+        if (!contact_type || !contact_status || !quotation_status) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ 
+                error: 'ข้อมูลไม่ครบถ้วน: contact_type, contact_status, quotation_status เป็นข้อมูลที่จำเป็น' 
+            });
+        }
 
-        // Add contact log with quotation information
+        console.log('Inserting contact with data:', {
+            customerId, contact_type, contact_status, quotation_status, contactDateTime
+        });
+
+        // ✅ บันทึก contact log โดยไม่ระบุ id (ให้ sequence จัดการ)
         const contactResult = await client.query(
             `INSERT INTO x_crmsystem.contact_logs 
             (customer_id, contact_type, contact_status, contact_method, contact_person,
              contact_details, next_follow_up, notes, created_by, contact_date,
-             quotation_status, quotation_amount)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+             quotation_status, quotation_amount, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), NOW())
             RETURNING *`,
-            [customerId, contact_type, contact_status, contact_method, contact_person,
-             contact_details, next_follow_up, notes, created_by, contactDateTime,
-             quotation_status, quotation_amount]
+            [
+                parseInt(customerId), 
+                contact_type, 
+                contact_status, 
+                contact_method || null, 
+                contact_person || null,
+                contact_details || null, 
+                next_follow_up || null, 
+                notes || null, 
+                created_by || 'Admin', 
+                contactDateTime,
+                quotation_status, 
+                quotation_amount ? parseFloat(quotation_amount) : null
+            ]
         );
 
-        console.log('Contact log saved with date:', contactResult.rows[0].contact_date);
-        console.log('Quotation status saved:', contactResult.rows[0].quotation_status);
-        console.log('Quotation amount saved:', contactResult.rows[0].quotation_amount);
+        const savedContact = contactResult.rows[0];
+        console.log('✅ Contact saved successfully with ID:', savedContact.id);
 
         // Update customer status if provided
         if (customer_status_update) {
@@ -496,35 +547,64 @@ app.post('/api/customers/:id/contacts', async (req, res) => {
                 WHERE id = $2`,
                 [customer_status_update, customerId]
             );
+            console.log('✅ Updated customer status to:', customer_status_update);
         }
 
         // ✅ อัพเดต contract_value ถ้ามี quotation_amount
-        if (quotation_amount && quotation_amount > 0) {
+        if (quotation_amount && parseFloat(quotation_amount) > 0) {
             await client.query(
                 `UPDATE x_crmsystem.customers 
                 SET contract_value = $1, updated_at = CURRENT_TIMESTAMP
                 WHERE id = $2`,
-                [quotation_amount, customerId]
+                [parseFloat(quotation_amount), customerId]
             );
-            console.log(`Updated contract_value for customer ${customerId} to ${quotation_amount} from new contact`);
+            console.log(`Updated contract_value for customer ${customerId} to ${quotation_amount}`);
         }
 
         await client.query('COMMIT');
-        res.json(contactResult.rows[0]);
+        console.log('✅ Transaction completed successfully');
+        
+        res.status(201).json({
+            success: true,
+            message: 'บันทึกการติดต่อเรียบร้อยแล้ว',
+            data: savedContact
+        });
+        
     } catch (err) {
         await client.query('ROLLBACK');
-        console.error('Add contact log error:', err);
-        res.status(500).json({ error: 'Failed to add contact log: ' + err.message });
+        console.error('❌ Contact creation error:', err);
+        
+        // ✅ ตรวจสอบประเภท error เฉพาะ
+        if (err.code === '23505') { // Unique constraint violation
+            console.error('Duplicate key error - this should not happen with proper sequence');
+            res.status(409).json({ 
+                error: 'เกิดข้อผิดพลาดการซ้ำซ้อนของข้อมูล กรุณาลองใหม่อีกครั้ง',
+                code: 'DUPLICATE_KEY'
+            });
+        } else if (err.code === '23503') { // Foreign key violation
+            res.status(400).json({ 
+                error: 'ไม่พบข้อมูลลูกค้าที่ระบุ',
+                code: 'FOREIGN_KEY_VIOLATION'
+            });
+        } else {
+            res.status(500).json({ 
+                error: 'เกิดข้อผิดพลาดในการบันทึกข้อมูล: ' + err.message,
+                code: err.code,
+                details: process.env.NODE_ENV === 'development' ? err.stack : undefined
+            });
+        }
     } finally {
         client.release();
+        console.log('Database connection released');
     }
 });
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
     res.json({ 
         status: 'OK', 
         timestamp: new Date().toISOString(),
-        version: '1.4.0' // Updated version with Tasks fix
+        version: '2.0.0' // Updated version with Contact Logs fix
     });
 });
 
@@ -611,6 +691,109 @@ app.get('/api/stats', async (req, res) => {
     }
 });
 
+// ✅ เพิ่ม endpoint สำหรับแก้ไข sequence (ใช้เมื่อจำเป็น)
+app.post('/api/admin/fix-contact-sequence', async (req, res) => {
+    try {
+        console.log('🔧 Fixing contact_logs sequence...');
+        
+        // หา ID สูงสุดปัจจุบัน
+        const maxIdResult = await pool.query(
+            'SELECT COALESCE(MAX(id), 0) as max_id FROM x_crmsystem.contact_logs'
+        );
+        const maxId = maxIdResult.rows[0].max_id;
+        
+        // ตั้งค่า sequence ให้ตรงกับค่าสูงสุด
+        await pool.query(
+            "SELECT setval('x_crmsystem.contact_logs_id_seq', $1, true)",
+            [Math.max(maxId, 1)]
+        );
+        
+        console.log('✅ Sequence fixed, next ID will be:', maxId + 1);
+        
+        res.json({
+            success: true,
+            message: 'แก้ไข sequence เรียบร้อยแล้ว',
+            max_id: maxId,
+            next_id: maxId + 1
+        });
+        
+    } catch (error) {
+        console.error('❌ Error fixing sequence:', error);
+        res.status(500).json({
+            error: 'ไม่สามารถแก้ไข sequence ได้: ' + error.message
+        });
+    }
+});
+
+// ✅ เพิ่มข้อมูลเพิ่มเติมใน test database endpoint
+app.get('/api/test/database', async (req, res) => {
+    try {
+        console.log('Testing database connection...');
+        
+        // ทดสอบการเชื่อมต่อ
+        const testConnection = await pool.query('SELECT NOW() as current_time');
+        
+        // ตรวจสอบ table structure
+        const tableInfo = await pool.query(`
+            SELECT 
+                column_name, 
+                data_type, 
+                column_default, 
+                is_nullable
+            FROM information_schema.columns 
+            WHERE table_schema = 'x_crmsystem' 
+            AND table_name = 'contact_logs'
+            ORDER BY ordinal_position
+        `);
+        
+        // ตรวจสอบ sequence
+        const sequenceInfo = await pool.query(`
+            SELECT 
+                sequence_name,
+                start_value,
+                increment,
+                max_value,
+                min_value,
+                last_value
+            FROM information_schema.sequences 
+            WHERE sequence_schema = 'x_crmsystem'
+            AND sequence_name = 'contact_logs_id_seq'
+        `);
+        
+        // หา ID สูงสุด
+        const maxIdResult = await pool.query(
+            'SELECT COALESCE(MAX(id), 0) as max_id FROM x_crmsystem.contact_logs'
+        );
+        
+        // นับจำนวน records
+        const countResult = await pool.query('SELECT COUNT(*) FROM x_crmsystem.contact_logs');
+        
+        res.json({
+            status: 'OK',
+            database_time: testConnection.rows[0].current_time,
+            table_structure: tableInfo.rows,
+            sequence_info: sequenceInfo.rows,
+            max_contact_id: parseInt(maxIdResult.rows[0].max_id),
+            total_contact_logs: parseInt(countResult.rows[0].count),
+            connection_config: {
+                host: process.env.DB_HOST,
+                database: process.env.DB_NAME,
+                port: process.env.DB_PORT,
+                schema: 'x_crmsystem'
+            }
+        });
+        
+    } catch (error) {
+        console.error('Database test error:', error);
+        res.status(500).json({
+            status: 'ERROR',
+            error: error.message,
+            code: error.code,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
+    }
+});
+
 // Error handling middleware
 app.use((error, req, res, next) => {
     console.error('Unhandled error:', error);
@@ -638,6 +821,6 @@ if (require.main === module) {
     app.listen(port, () => {
         console.log(`Server running at http://localhost:${port}`);
         console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-        console.log('CRM System v1.4.0 - Fixed Task Creation Issue');
+        console.log('CRM System v2.0.0 - Contact Logs Sequence Fixed');
     });
 }
